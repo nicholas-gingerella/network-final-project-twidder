@@ -1,11 +1,19 @@
 #!/bin/env/python
-import socket   #for socket
+import socket
 import os
 import errno
-import sys  #for exit
+import sys
+import signal
 import time
 import json
+from getpass import getpass
 from myEnum import enum
+
+#signal handler for ctrl-c (SIGINT)
+def sigint_handler(signal, fram):
+    print('\nClosing client...\n')
+    sys.exit(0)
+signal.signal(signal.SIGINT,sigint_handler)
 
 
 class TwitterClient:
@@ -13,7 +21,7 @@ class TwitterClient:
     def __init__(self, targetHost = '127.0.0.1', portNum = 8000):
         self.username = ''
         self.password = ''
-        self.states = enum('LOGIN','CONNECT','LOGGEDIN','SHUTDOWN')
+        self.states = enum('LOGIN','CONNECT','MAIN_MENU','OFFLINE_MESSAGES','EDIT_SUBSCRIPTIONS','NEW_POST','HASHTAG_SEARCH','LOGOUT')
         self.state = self.states.LOGIN
         self.sock = None
         self.host = targetHost
@@ -22,8 +30,9 @@ class TwitterClient:
 
         #if flag is passed to script, then output
         #debug messages
-        if sys.argv[1] == 'd':
-            self.debug = True
+        if len(sys.argv) > 1:
+            if sys.argv[1] == 'd':
+                self.debug = True
 
 
     def set_target_host(self, h = '127.0.0.1'):
@@ -100,17 +109,24 @@ class TwitterClient:
         return json_data
 
 
-
     def run(self):
         while True:
             if self.state == self.states.LOGIN:
                 self.handle_LOGIN()
             elif self.state == self.states.CONNECT:
                 self.handle_CONNECT()
-            elif self.state == self.states.LOGGEDIN:
-                self.handle_LOGGEDIN()
-            elif self.state == self.states.SHUTDOWN:
-                self.handle_SHUTDOWN()
+            elif self.state == self.states.MAIN_MENU:
+                self.handle_MAIN_MENU()
+            elif self.state == self.states.OFFLINE_MESSAGES:
+                self.handle_OFFLINE()
+            elif self.state == self.states.EDIT_SUBSCRIPTIONS:
+                self.handle_SUBSCRIPTIONS()
+            elif self.state == self.states.NEW_POST:
+                self.handle_POST()
+            elif self.state == self.states.HASHTAG_SEARCH:
+                self.handle_SEARCH()
+            elif self.state == self.states.LOGOUT:
+                self.handle_LOGOUT()
 
 
     #========================================================
@@ -122,7 +138,7 @@ class TwitterClient:
         print('LOGIN')
         print('**************************')
         self.username = input('username:')
-        self.password = input('password:')
+        self.password = getpass('password:')
         self.state = self.states.CONNECT
 
 
@@ -161,7 +177,7 @@ class TwitterClient:
                 if content["message"] == 'ok':
                     if self.debug:
                         print('auth accepted, now logging in')
-                    self.state = self.states.LOGGEDIN
+                    self.state = self.states.MAIN_MENU
                     return
                 else:
                     if self.debug:
@@ -179,13 +195,50 @@ class TwitterClient:
         self.state = self.states.LOGIN
 
 
-
-    def handle_LOGGEDIN(self):
+    def handle_MAIN_MENU(self):
         print("Logged In")
-        input("type some stuff: ")
+        choice = self.print_menu()
+        print("you chose",choice)
+        
+        #based on input, decide which state to go to
+        if choice == 1:
+            self.state = self.states.OFFLINE_MESSAGES
+        elif choice == 2:
+            self.state = self.states.EDIT_SUBSCRIPTIONS
+        elif choice == 3:
+            self.state = self.states.NEW_POST
+        elif choice == 4:
+            self.state = self.states.HASHTAG_SEARCH
+        elif choice == 5:
+            self.state = self.states.LOGOUT
 
 
-    def handle_SHUTDOWN():
+    def handle_OFFLINE(self):
+        print('view offline message')
+        choice = input('push enter to go back to main')
+        self.state = self.states.MAIN_MENU
+
+
+    def handle_SUBSCRIPTIONS(self):
+        print('edit subscriptions')
+        choice = input('push enter to go back to main')
+        self.state = self.states.MAIN_MENU
+
+
+    def handle_POST(self):
+        print('post a message')
+        choice = input('push enter to go back to main')
+        self.state = self.states.MAIN_MENU
+
+
+    def handle_SEARCH(self):
+        print('hashtag search')
+        choice = input('push enter to go back to main')
+        self.state = self.states.MAIN_MENU
+
+
+    def handle_LOGOUT(self):
+        print('Closing client...')
         self.sock.close()
         sys.exit()
     #========================================================
@@ -210,7 +263,29 @@ class TwitterClient:
         return new_msg
 
 
+    def print_menu(self):
+        menu = '****************************\n'
+        menu += 'Twitter Menu\n'
+        menu += '***************************\n'
+        menu += '1 - See offline messages\n'
+        menu += '2 - Edit subscriptions\n'
+        menu += '3 - Make a post\n'
+        menu += '4 - Hashtag search\n'
+        menu += '5 - Logout\n'
+        menu += '****************************'
 
+        choice = 0
+        while choice < 1 or choice > 5:
+            print()
+            print(menu)
+            choice = input('enter choice: ')
+            if choice.isnumeric():
+                choice = int(choice)
+            else:
+                return 0
+        if self.debug:
+            print('choice is valid!')
+        return choice
 #end of twitter client class 
 
 
