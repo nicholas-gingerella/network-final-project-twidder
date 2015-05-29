@@ -234,6 +234,10 @@ class TwitterClient:
         print('Offline Messages')
         print('***************************')
         print('view offline messages')
+
+        #TODO: build offline message request
+        #send connection request to server
+        self.send_data(json.dumps(msg))
         choice = input('push enter to go back to main')
         self.state = self.states.MAIN_MENU
 

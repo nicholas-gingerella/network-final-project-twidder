@@ -82,6 +82,16 @@ class TwidderProtocol(protocol.Protocol):
     else:
       print 'How did you get here?'
 
+  def makeJSON(self,data):
+    msg = None
+    try:
+      msg = json.loads(data)
+      return msg
+    except:
+      print 'ERROR: not a proper JSON message'
+      return None
+
+
 
   #========================================================
   # State Handling Methods 
@@ -155,6 +165,20 @@ class TwidderProtocol(protocol.Protocol):
 
 
   def handle_USER(self, data):
+    json_msg = self.makeJSON(data)
+    if json_msg == None:
+      if self.debug:
+        print 'ERROR: not a proper JSON message'
+      fail_msg = self.newMessage(message_type = 'offline_response')
+      fail_msg['contents']['message'] = 'fail'
+      self.transport.write(json.dumps(fail_msg))
+
+    #if the client sent us a request for offline messages
+    if self.isOfflineMessageRequest(data):
+      if self.debug:
+        print 'offline message request from', self.username, 'received'
+        self.transport.write('message received')
+
     print 'User:' + self.user_id + ' is gonna ask me for stuff.....'
 
   #========================================================
@@ -184,6 +208,13 @@ class TwidderProtocol(protocol.Protocol):
     return False
 
 
+  def isOfflineMessagesRequest(self, json_msg):
+    if self.isUserRequest(json_msg):
+      if json_msg["message_type"] == 'offline_request':
+        return True
+    return False
+    
+
   #creates a dictionary with basic formatting for messages
   def newMessage(self, message_type, sender='twidder'):
     new_msg = {}
@@ -210,8 +241,11 @@ class TwidderFactory(protocol.ServerFactory):
         "user2":{"password":'1234', "subscribed_to":['user1', 'user3'], "subscribers":['user1']},
         "user3":{"password":'wasd', "subscribed_to":[], "subscribers":['user2']}
         }
-    #user_logins = {"user1":'asdf', "user2":'1234', "user3":'wasd'}
 
+    #if a user is not logged in when a message arrives, it is stored in the offline messages
+    #dictionary. When they log on and request the offline messages, they will all be sent to
+    #the user
+    offline_messages = {"user1":[]}
     user_subscriptions = {"user1":['user3'], "user2":['user1','user3'], "user3":[]}
 
     connected_user_count = 0
