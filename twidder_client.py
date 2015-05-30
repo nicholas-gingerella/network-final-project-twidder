@@ -21,7 +21,10 @@ class TwitterClient:
     def __init__(self, targetHost = '127.0.0.1', portNum = 8000):
         self.username = ''
         self.password = ''
-        self.states = enum('LOGIN','CONNECT','MAIN_MENU','OFFLINE_MESSAGES','EDIT_SUBSCRIPTIONS','NEW_POST','HASHTAG_SEARCH','LOGOUT')
+        self.states = enum('LOGIN','CONNECT','MAIN_MENU','OFFLINE_MAIN',
+                           'OFFLINE_MAIN', 'OFFLINE_ALL', 'OFFLINE_SUBSCRIPTIONS',
+                           'EDIT_SUBSCRIPTIONS','NEW_POST','HASHTAG_SEARCH','LOGOUT'
+                           )
         self.state = self.states.LOGIN
         self.sock = None
         self.host = targetHost
@@ -124,18 +127,31 @@ class TwitterClient:
         while True:
             if self.state == self.states.LOGIN:
                 self.handle_LOGIN()
+
             elif self.state == self.states.CONNECT:
                 self.handle_CONNECT()
+
             elif self.state == self.states.MAIN_MENU:
                 self.handle_MAIN_MENU()
-            elif self.state == self.states.OFFLINE_MESSAGES:
-                self.handle_OFFLINE()
+
+            elif self.state == self.states.OFFLINE_MAIN:
+                self.handle_OFFLINE_MAIN()
+
+            elif self.state == self.states.OFFLINE_ALL:
+                self.handle_OFFLINE_ALL()
+
+            elif self.state == self.states.OFFLINE_SUBSCRIPTIONS:
+                self.handle_OFFLINE_SUBSCRIPTIONS()
+
             elif self.state == self.states.EDIT_SUBSCRIPTIONS:
                 self.handle_SUBSCRIPTIONS()
+
             elif self.state == self.states.NEW_POST:
                 self.handle_POST()
+
             elif self.state == self.states.HASHTAG_SEARCH:
                 self.handle_SEARCH()
+
             elif self.state == self.states.LOGOUT:
                 self.handle_LOGOUT()
 
@@ -211,13 +227,11 @@ class TwitterClient:
 
 
     def handle_MAIN_MENU(self):
-        print("Logged In")
-        choice = self.print_menu()
-        print("you chose",choice)
+        choice = self.print_main_menu()
         
         #based on input, decide which state to go to
         if choice == 1:
-            self.state = self.states.OFFLINE_MESSAGES
+            self.state = self.states.OFFLINE_MAIN
         elif choice == 2:
             self.state = self.states.EDIT_SUBSCRIPTIONS
         elif choice == 3:
@@ -228,18 +242,28 @@ class TwitterClient:
             self.state = self.states.LOGOUT
 
 
-    def handle_OFFLINE(self):
-        os.system('clear')
-        print('***************************')
-        print('Offline Messages')
-        print('***************************')
-        print('view offline messages')
+    def handle_OFFLINE_MAIN(self):
+        choice = self.print_offline_menu_main()
 
+        if choice == 1:
+          self.state = self.states.OFFLINE_ALL
+        if choice == 2:
+          self.state = self.states.OFFLINE_SUBSCRIPTIONS
+        if choice == 3:
+          self.state = self.states.MAIN_MENU
+
+    def handle_OFFLINE_ALL(self):
+        os.system('clear')
+        print('offline all')
         #TODO: build offline message request
-        #send connection request to server
-        self.send_data(json.dumps(msg))
-        choice = input('push enter to go back to main')
-        self.state = self.states.MAIN_MENU
+        choice = input('push enter to go back')
+        self.state = self.states.OFFLINE_MAIN
+
+    def handle_OFFLINE_SUBSCRIPTIONS(self):
+        os.system('clear')
+        print('offline subscriptions')
+        choice = input('push enter to go back')
+        self.state = self.states.OFFLINE_MAIN
 
 
     def handle_SUBSCRIPTIONS(self):
@@ -295,7 +319,7 @@ class TwitterClient:
         return new_msg
 
 
-    def print_menu(self):
+    def print_main_menu(self):
         os.system('clear')
         menu =  '***************************\n'
         menu += 'Welcome ' + self.username + '\n'
@@ -309,6 +333,32 @@ class TwitterClient:
 
         choice = 0
         while choice < 1 or choice > 5:
+            print(menu)
+            choice = input('enter choice: ')
+            if choice.isnumeric():
+                choice = int(choice)
+            else:
+                return 0
+        if self.debug:
+            print('choice is valid!')
+        return choice
+
+
+    #the first menu for offline messages
+    #where users can choose to see all messages or 
+    #just those from a certain subscription
+    def print_offline_menu_main(self):
+        os.system('clear')
+        menu =  '***************************\n'
+        menu += 'Offline Messages\n'
+        menu += '***************************\n'
+        menu += '1 - All subscriptions\n'
+        menu += '2 - Select subscription\n'
+        menu += '3 - Back to Main Menu\n'
+        menu += '****************************'
+
+        choice = 0
+        while choice < 1 or choice > 3:
             print(menu)
             choice = input('enter choice: ')
             if choice.isnumeric():

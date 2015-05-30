@@ -171,19 +171,37 @@ class TwidderProtocol(protocol.Protocol):
 
 
   def handle_USER(self, data):
+    global DB
+
     json_msg = self.makeJSON(data)
     if json_msg == None:
       if self.debug:
         print 'ERROR: not a proper JSON message'
-      fail_msg = self.newMessage(message_type = 'offline_response')
-      fail_msg['contents']['message'] = 'fail'
-      self.transport.write(json.dumps(fail_msg))
+        fail_msg = self.newMessage(message_type = 'get_unread_messages')
+        fail_msg['contents']['message'] = 'fail'
+        self.transport.write(json.dumps(fail_msg))
 
     #if the client sent us a request for offline messages
-    if self.isOfflineMessageRequest(data):
-      if self.debug:
-        print 'offline message request from', self.username, 'received'
-        self.transport.write('message received')
+    if json_msg['message_type'] == 'get_unread_messages':
+        if self.debug:
+            print 'offline message request from', self.username, 'received'
+            self.transport.write('message received')
+
+        #expecting a string. The name of the leader
+        #for a subscription
+        leader = json_msg['contents']['message']
+        unreadMessages = DB.get_unread_messages(self.clientname, leader)
+        print unreadMessages
+        #send the messages back to the user
+        response = self.newMessage( message_type = 'unread_messages' )
+        response['contents']['message'] = unreadMessages
+        self.transport.write(json.dumps(response))
+
+        if len(unreadMessages) > 0:
+            #if there were unread messages for this subscription, Now set the
+            #unread field to 0 for the record where the follower is self.clientname
+            #and the leader is lead
+            print 'will now clear unread messages for entry', self.clientname, leader
 
     print 'User:' + self.user_id + ' is gonna ask me for stuff.....'
 
@@ -213,13 +231,6 @@ class TwidderProtocol(protocol.Protocol):
           return True
     return False
 
-
-  def isOfflineMessagesRequest(self, json_msg):
-    if self.isUserRequest(json_msg):
-      if json_msg["message_type"] == 'offline_request':
-        return True
-    return False
-    
 
   #creates a dictionary with basic formatting for messages
   def newMessage(self, message_type, sender='twidder'):
