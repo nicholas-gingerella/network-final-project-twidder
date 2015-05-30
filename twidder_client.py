@@ -149,7 +149,7 @@ class TwitterClient:
         print('**************************')
         print('Twidder Login')
         print('**************************')
-        self.username = input('username:')
+        self.username = input('username:').strip()
         self.password = getpass('password:')
         self.state = self.states.CONNECT
 

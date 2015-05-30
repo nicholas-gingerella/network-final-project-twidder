@@ -6,11 +6,14 @@ from twisted.internet import reactor, protocol, endpoints
 from twisted.internet.defer import Deferred
 from twisted.protocols import basic
 from myEnum import enum
+from twidder_db import TwidderDB
 import sys
 import signal
 import json
 import threading
 
+#globals that are used for
+DB = TwidderDB()
 message_count = 0
 user_count = 0
 
@@ -64,6 +67,7 @@ class TwidderProtocol(protocol.Protocol):
   def dataReceived(self, data):
     global message_count
 
+    #increment number of messages that server has received
     self.factory.msg_recv_count += 1
     message_count = self.factory.msg_recv_count
 
@@ -74,7 +78,7 @@ class TwidderProtocol(protocol.Protocol):
       for u in self.factory.connected_users:
         print u
 
-
+    #state transitions
     if self.current_state == self.factory.twidder_states.LOGIN:
       self.handle_LOGIN(data)
     elif self.current_state == self.factory.twidder_states.USER:
@@ -82,6 +86,9 @@ class TwidderProtocol(protocol.Protocol):
     else:
       print 'How did you get here?'
 
+
+  #check if data can be converted into a json object
+  #if so, return the object, else return None
   def makeJSON(self,data):
     msg = None
     try:
@@ -98,7 +105,7 @@ class TwidderProtocol(protocol.Protocol):
   #========================================================
   
   def handle_LOGIN(self, data):
-    global user_count
+    global user_count, DB
 
     json_msg = None
     try:
@@ -125,7 +132,7 @@ class TwidderProtocol(protocol.Protocol):
     user_pass = json_msg["contents"]["message"]["password"]
 
     #if a valid username and password are received, let this user enter the USER state
-    if user in self.factory.user_logins and user_pass == self.factory.user_logins[user]["password"]:
+    if DB.authorize_user(user, user_pass): 
       #assign user name of this connection
       self.user_id = user
 
@@ -151,7 +158,6 @@ class TwidderProtocol(protocol.Protocol):
           print u
 
       return
-
     else:
       if self.debug:
         print 'bad credentials'
@@ -232,16 +238,6 @@ class TwidderFactory(protocol.ServerFactory):
     #enumerations as state variables
     twidder_states = enum('LOGIN', 'USER')
 
-    #list of "registered" users
-    #can't use twidder server unless these logged in with one of these credentials
-    #also contains info about who each user is subscribed to (subscribed_to)
-    #and who has subscribed to them (subscribers)
-    user_logins = {
-        "user1":{"password":'asdf', "subscribed_to":['user3'], "subscribers":['user2']},
-        "user2":{"password":'1234', "subscribed_to":['user1', 'user3'], "subscribers":['user1']},
-        "user3":{"password":'wasd', "subscribed_to":[], "subscribers":['user2']}
-        }
-
     #if a user is not logged in when a message arrives, it is stored in the offline messages
     #dictionary. When they log on and request the offline messages, they will all be sent to
     #the user
@@ -261,11 +257,11 @@ class TwidderFactory(protocol.ServerFactory):
 #reactor framework runs
 def input_thread():
   while True:
-    cmd = raw_input("cmd:")
+    cmd = raw_input("admin ~> ")
     if cmd == 'messagecount':
-      print message_count 
+      print 'Messages received:',message_count 
     if cmd == 'usercount':
-      print user_count
+      print 'Logged in users:',user_count
     
 
 #create thread for getting input
