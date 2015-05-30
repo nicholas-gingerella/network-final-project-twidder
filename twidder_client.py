@@ -297,15 +297,51 @@ class TwitterClient:
         response = self.get_json()
         subscriptions = response['contents']['message']
         if len(subscriptions) == 0:
-          prnt('You have no subscriptions')
+          print('You have no subscriptions')
           choice = input('**push enter to go back**')
           self.state = self.states.OFFLINE_MAIN
         else:
           choice = self.subscription_menu('Missed Messages by Subscription',subscriptions) 
           if choice == len(subscriptions):
             self.state = self.states.OFFLINE_MAIN
+          elif choice == None:
+            self.state = self.states.OFFLINE_SUBSCRIPTIONS
           else:
             print("you chose subscription",choice+1,"-",subscriptions[choice])
+            #I now have the user_id of the subscription, now request messages for this subscription
+            #from the server and display those messages
+
+            #user id of this particular subscription leader
+            subscription = subscriptions[choice]
+
+            #request messages from this subscription 
+            msg = self.new_message(message_type = 'request')
+            msg['contents']['message'] = 'unread_from_subscription'
+            msg['contents']['leader_id'] = subscriptions[choice]
+            self.send_data(json.dumps(msg))
+            
+            #wait for response from server
+            response = self.get_json()
+            messages = response['contents']['message']
+
+            os.system('clear')
+            print('***************************')
+            print('Missed Message From:',subscription)
+            print('***************************\n')
+
+            #if there are no missed messages for this subscription
+            #just say so
+            if len(messages) <= 0:
+              print('No missed posts')
+              print('Looks like your all up to date :D\n')
+            else:
+              #the response contains all the missed messages, along with the subscription
+              #the messages are associated with
+              for msg in messages:
+                print(msg[0],'posted:',msg[1])
+              print()
+
+            self.state = self.states.OFFLINE_SUBSCRIPTIONS
             input("press enter to continue")
 
 

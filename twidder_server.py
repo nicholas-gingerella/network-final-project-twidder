@@ -20,6 +20,8 @@ user_count = 0
 class TwidderProtocol(protocol.Protocol):
   current_state = None
   user_id = ''
+  clear_all_unread = False #flag to reset unread count for subscriptions
+  read_subscriptions = [] #list of subscriptions whose messages have been read
   debug = False
 
   #pass flag to script to output debug messages
@@ -37,7 +39,7 @@ class TwidderProtocol(protocol.Protocol):
   #when a client closes the connection, or the connection is lost,
   #this runs
   def connectionLost(self, reason):
-      global user_count
+      global user_count, DB
 
       if self.debug:
         print 'lost connection to client'
@@ -60,6 +62,18 @@ class TwidderProtocol(protocol.Protocol):
         #AND the global user_count variable (used by input thread)
         self.factory.connected_user_count = len(self.factory.connected_users)
         user_count = self.factory.connected_user_count
+      
+      #reset unread counts for this user in the database
+      if self.clear_all_unread:
+        #database query to reset unread counts for ALL of this users subscriptions
+        DB.clear_all_unread(self.user_id)
+      else:
+        #check self.clear_unread list and reset the unread counts to 0 for all
+        #subscriptions where follower is self.user_id and leader_id is self.clear_unread[lead]
+        for sub in self.read_subscriptions:
+          DB.clear_unread(self.user_id, sub)
+
+        
 
 
   #Whenever the server recieves data from any of the clients, this method
@@ -199,6 +213,10 @@ class TwidderProtocol(protocol.Protocol):
             response['contents']['message'] = unreadMessages
             self.transport.write(json.dumps(response))
 
+            #when the user views all messages, set flag to reset unread
+            #messages to 0 for all of this users subscriptions
+            self.clear_all_unread = True
+
         elif json_msg['contents']['message'] == 'get_subscriptions':
             #I need to get the subscriptions, and send them back to the
             #user, this way, the user can send me which subscription he
@@ -217,17 +235,21 @@ class TwidderProtocol(protocol.Protocol):
             response['contents']['message'] = user_subscriptions 
             self.transport.write(json.dumps(response))
 
-        elif json_msg['contents']['message'] == 'unread':
-            leader = json_msg['contents']['leader']
-
+        elif json_msg['contents']['message'] == 'unread_from_subscription':
             #get unread messages from a certain subscription 
-            leader = json_msg['contents']['message']
+            leader = json_msg['contents']['leader_id']
             unreadMessages = DB.get_unread_messages(self.user_id, leader)
 
             #send the messages back to the user
             response = self.newMessage( message_type = 'response' )
             response['contents']['message'] = unreadMessages
             self.transport.write(json.dumps(response))
+
+            #the user has now seen this particular subscriptions missed messages
+            #add this leader to the list of subscriptions for which we will reset
+            #the unread count back to 0
+            self.read_subscriptions.append(leader)
+
         else:
             #send the messages back to the user
             response = self.newMessage( message_type = 'response' )

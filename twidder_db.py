@@ -204,6 +204,37 @@ class TwidderDB(object):
         return messages 
 
 
+    #increment the number of unread messages for particular subscription
+    def increment_unread(self, user, leader):
+        sql = '''
+            UPDATE subscribes
+            SET unread = unread + 1
+            WHERE follower_id="'''+user+'''" and leader_id="'''+leader+'''" 
+        '''
+        self.exec_query(sql)
+
+
+    #set unread count to 0 for all subscriptions where user is the follower
+    def clear_all_unread(self, user):
+        sql = '''
+            UPDATE subscribes
+            SET unread = 0
+            WHERE follower_id = "'''+user+'''" 
+        '''
+        self.exec_query(sql)
+
+
+    #set unread count to 0 for particular subscription, where user is the follower
+    #and leader is the leader_id of the subscription
+    def clear_unread(self, user, leader):
+        sql = '''
+            UPDATE subscribes
+            SET unread = 0
+            WHERE follower_id="'''+user+'''" and leader_id="'''+leader+'''" 
+        '''
+        self.exec_query(sql)
+
+
     #get all posts or a certain users posts
     def get_posts(self, user=None):
         sql = ''
@@ -355,3 +386,17 @@ if __name__ == '__main__':
 
     print 'all unread messages for nick'
     result = mydb.get_all_unread_messages('nick')
+
+    mydb.print_table('subscribes') 
+
+    print 'clear unread messages for nicks susbcription with tom'
+    mydb.clear_unread('nick','tom')
+
+    mydb.print_table('subscribes') 
+
+    print 'increment unread for nicks subscription with tom'
+    mydb.increment_unread('nick','tom')
+
+    mydb.print_table('subscribes') 
+
+
