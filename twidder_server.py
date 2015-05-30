@@ -177,33 +177,65 @@ class TwidderProtocol(protocol.Protocol):
     if json_msg == None:
       if self.debug:
         print 'ERROR: not a proper JSON message'
-        fail_msg = self.newMessage(message_type = 'get_unread_messages')
+        fail_msg = self.newMessage(message_type = 'response')
         fail_msg['contents']['message'] = 'fail'
         self.transport.write(json.dumps(fail_msg))
 
+    #******************************************************
+    # Unread Message Handling
+    #******************************************************
     #if the client sent us a request for offline messages
-    if json_msg['message_type'] == 'get_unread_messages':
+    #******************************************************
+    if json_msg['message_type'] == 'request':
         if self.debug:
-            print 'offline message request from', self.username, 'received'
-            self.transport.write('message received')
+            print 'request from', self.user_id, 'received'
 
-        #expecting a string. The name of the leader
-        #for a subscription
-        leader = json_msg['contents']['message']
-        unreadMessages = DB.get_unread_messages(self.clientname, leader)
-        print unreadMessages
-        #send the messages back to the user
-        response = self.newMessage( message_type = 'unread_messages' )
-        response['contents']['message'] = unreadMessages
-        self.transport.write(json.dumps(response))
+        if json_msg['contents']['message'] == 'all_unread':
+            #get all unread messages for this user from the database
+            unreadMessages = DB.get_all_unread_messages(self.user_id)
 
-        if len(unreadMessages) > 0:
-            #if there were unread messages for this subscription, Now set the
-            #unread field to 0 for the record where the follower is self.clientname
-            #and the leader is lead
-            print 'will now clear unread messages for entry', self.clientname, leader
+            #send the messages back to the user
+            response = self.newMessage( message_type = 'response' )
+            response['contents']['message'] = unreadMessages
+            self.transport.write(json.dumps(response))
 
-    print 'User:' + self.user_id + ' is gonna ask me for stuff.....'
+        elif json_msg['contents']['message'] == 'get_subscriptions':
+            #I need to get the subscriptions, and send them back to the
+            #user, this way, the user can send me which subscription he
+            #wants to get messages from
+            result = DB.get_subscriptions(self.user_id)
+
+            #extract the names from the tuples in the result, to make life
+            #easier for the client side
+            user_subscriptions = []
+            for row in result:
+                user_subscriptions.append(row[0])
+            
+            #now we simply have a list of user ids who the current user is subscribed to
+            #send the subscriptions back to the user
+            response = self.newMessage( message_type = 'response' )
+            response['contents']['message'] = user_subscriptions 
+            self.transport.write(json.dumps(response))
+
+        elif json_msg['contents']['message'] == 'unread':
+            leader = json_msg['contents']['leader']
+
+            #get unread messages from a certain subscription 
+            leader = json_msg['contents']['message']
+            unreadMessages = DB.get_unread_messages(self.user_id, leader)
+
+            #send the messages back to the user
+            response = self.newMessage( message_type = 'response' )
+            response['contents']['message'] = unreadMessages
+            self.transport.write(json.dumps(response))
+        else:
+            #send the messages back to the user
+            response = self.newMessage( message_type = 'response' )
+            response['contents']['message'] = 'fail' 
+            self.transport.write(json.dumps(response))
+
+    if self.debug:
+        print 'in user state'
 
   #========================================================
   #  End State Handling Methods 

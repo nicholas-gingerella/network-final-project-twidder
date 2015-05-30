@@ -46,9 +46,11 @@ class TwidderDB(object):
                      (5,'dustin','I luv Ham! :)'),
                      (6,'dustin','Die in a fire...with all due respect :)'),
                      (7,'carla','Henk Henk'),
-                     (8,'enrique','Crickets are pretty tasty, especially the brown ones!'),
-                     (9,'enrique','GERMAN ENGINEERING!'),
-                     (10,'enrique','porkay no lost toast?')
+                     (8,'tom','Beer will solve all of our problems!'),
+                     (9,'enrique','Crickets are pretty tasty, especially the brown ones!'),
+                     (10,'enrique','GERMAN ENGINEERING!'),
+                     (11,'enrique','porkay no lost toast?'),
+                     (12,'tom','....unless you get a DUI')
                     ]
         self.db_cursor.executemany('INSERT INTO posts VALUES (?,?,?)',new_posts)
 
@@ -103,7 +105,7 @@ class TwidderDB(object):
         )
         '''
         self.db_cursor.execute(subscribes_table)
-        new_subscribes = [('nick','tom', 1),
+        new_subscribes = [('nick','tom', 2),
                           ('nick','enrique',2),
                           ('enrique','carla',0),
                           ('dustin','tom', 1),
@@ -165,7 +167,7 @@ class TwidderDB(object):
 
         num_unread = num_unread[0][0]
         sql = '''
-            SELECT pid, uid, content
+            SELECT uid, content
             FROM posts INNER JOIN subscribes ON
             posts.uid=subscribes.leader_id
             WHERE subscribes.follower_id="'''+follower+'''" and subscribes.leader_id="'''+leader+ '''"
@@ -180,6 +182,26 @@ class TwidderDB(object):
         sql = 'SELECT leader_id FROM subscribes WHERE follower_id="'+user+'" and unread > 0 ORDER BY leader_id'
         result = self.exec_query(sql)
         return result
+
+
+    def get_all_unread_messages(self, user):
+        result = self.get_unread_subscriptions(user)
+        subscriptions = []
+        for row in result:
+          subscriptions.append(row[0])
+        
+        #if there are no subscriptions, don't bother with the rest
+        if len(subscriptions) <= 0:
+          return None
+
+        #message will be a list of lists
+        #where each element is a list of posts by a certain leader
+        messages = []
+        for leader in subscriptions:
+          result = self.get_unread_messages(user, leader)
+          messages.append(result)
+
+        return messages 
 
 
     #get all posts or a certain users posts
@@ -213,10 +235,10 @@ class TwidderDB(object):
     def get_subscriptions(self, user=None):
         sql = ''
         if user != None:
-            sql = 'SELECT * FROM subscribes WHERE follower_id="'+user+'"'
+            sql = 'SELECT leader_id FROM subscribes WHERE follower_id="'+user+'"'
         else:
             sql = 'SELECT * FROM subscribes'
-        return mydb.exec_query(sql)
+        return self.exec_query(sql)
 
 
     def print_table(self, table):
@@ -330,3 +352,6 @@ if __name__ == '__main__':
 
     print 'authorize user test'
     mydb.authorize_user('dustin','wasd')
+
+    print 'all unread messages for nick'
+    result = mydb.get_all_unread_messages('nick')

@@ -254,16 +254,59 @@ class TwitterClient:
 
     def handle_OFFLINE_ALL(self):
         os.system('clear')
-        print('offline all')
-        #TODO: build offline message request
-        choice = input('push enter to go back')
+        print('***************************')
+        print('All Offline Messages')
+        print('***************************\n')
+
+        #build request and send to server
+        msg = self.new_message(message_type = 'request')
+        msg['contents']['message'] = 'all_unread'
+        self.send_data(json.dumps(msg))
+        
+        #wait for response from server
+        response = self.get_json()
+
+        #if there are no missed messages, the message is None
+        if response['contents']['message'] == None:
+          print('No missed posts')
+          print('Looks like your all up to date :D\n')
+        else:
+          #the response contains all the missed messages, along with the subscription
+          #the messages are associated with
+          all_messages = response['contents']['message']
+          for user in all_messages:
+            print('-----------------------------------------------------')
+            print('Missed posts from', user[0][0]) #this gets the name of the user (wierd structure :/)
+            print('-----------------------------------------------------')
+            for msg in user:
+              print(msg[0],'posted:',msg[1])
+            print('-----------------------------------------------------\n\n')
+
+        
+        choice = input('**push enter to go back**')
         self.state = self.states.OFFLINE_MAIN
 
     def handle_OFFLINE_SUBSCRIPTIONS(self):
-        os.system('clear')
-        print('offline subscriptions')
-        choice = input('push enter to go back')
-        self.state = self.states.OFFLINE_MAIN
+        #build request and send to server
+        #request a list of subscriptions
+        msg = self.new_message(message_type = 'request')
+        msg['contents']['message'] = 'get_subscriptions'
+        self.send_data(json.dumps(msg))
+        
+        #wait for response from server
+        response = self.get_json()
+        subscriptions = response['contents']['message']
+        if len(subscriptions) == 0:
+          prnt('You have no subscriptions')
+          choice = input('**push enter to go back**')
+          self.state = self.states.OFFLINE_MAIN
+        else:
+          choice = self.subscription_menu('Missed Messages by Subscription',subscriptions) 
+          if choice == len(subscriptions):
+            self.state = self.states.OFFLINE_MAIN
+          else:
+            print("you chose subscription",choice+1,"-",subscriptions[choice])
+            input("press enter to continue")
 
 
     def handle_SUBSCRIPTIONS(self):
@@ -321,15 +364,15 @@ class TwitterClient:
 
     def print_main_menu(self):
         os.system('clear')
-        menu =  '***************************\n'
-        menu += 'Welcome ' + self.username + '\n'
-        menu += '***************************\n'
+        menu =  '***************************************\n'
+        menu += self.username + '\'s Dashboard\n'
+        menu += '***************************************\n'
         menu += '1 - See offline messages\n'
         menu += '2 - Edit subscriptions\n'
         menu += '3 - Make a post\n'
         menu += '4 - Hashtag search\n'
         menu += '5 - Logout\n'
-        menu += '****************************'
+        menu += '***************************************'
 
         choice = 0
         while choice < 1 or choice > 5:
@@ -368,6 +411,36 @@ class TwitterClient:
         if self.debug:
             print('choice is valid!')
         return choice
+
+    #menu that is a list of subscriptions, and the return value 
+    #0 to len-1 for a list index (subscription), or len, which is
+    #go back
+    def subscription_menu(self, menu_name, list_of_options):
+      choice = None
+      while choice == None or choice < 1 or choice > len(list_of_options)+1:
+          os.system('clear')
+          print('*********************************')
+          print(menu_name)
+          print('*********************************')
+          choices = ''
+          for num, option in enumerate(list_of_options):
+            choices += str(num+1) + ' - ' + option
+            if num < len(list_of_options)-1:
+              choices += '\n'
+          print(choices)
+          print(len(list_of_options)+1,'-','Back to previous menu')
+          print('***************************')
+          
+          choice = input('enter choice: ')
+          if choice.isnumeric():
+              choice = int(choice)
+          else:
+              return None 
+      if self.debug:
+          print('choice is valid!')
+      return choice-1
+
+
 #end of twidder client class 
 
 
