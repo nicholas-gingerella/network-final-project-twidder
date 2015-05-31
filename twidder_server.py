@@ -185,83 +185,152 @@ class TwidderProtocol(protocol.Protocol):
 
 
   def handle_USER(self, data):
+    #NOTE: may need to move this to all other handler functions
+    #ie: handdle_offline_messages, etc..
     global DB
 
+    #take the received data and decode it as a JSON object, if possible
+    #return None if data was not a proper JSON string
     json_msg = self.makeJSON(data)
+
+    #check the received data is a properly formatted JSON object 
     if json_msg == None:
       if self.debug:
         print 'ERROR: not a proper JSON message'
         fail_msg = self.newMessage(message_type = 'response')
         fail_msg['contents']['message'] = 'fail'
         self.transport.write(json.dumps(fail_msg))
+        return
 
-    #******************************************************
-    # Unread Message Handling
-    #******************************************************
-    #if the client sent us a request for offline messages
-    #******************************************************
-    if json_msg['message_type'] == 'request':
-        if self.debug:
-            print 'request from', self.user_id, 'received'
+    #if the user sent a message regarding offline messages
+    if json_msg['message_type'] == 'offline_messages':
+      self.handle_offline_messages(json_msg)
+   
+    #if the user sent a message regarding subscriptions
+    elif json_msg['message_type'] == 'subscriptions':
+      self.handle_subscriptions(json_msg)
 
-        if json_msg['contents']['message'] == 'all_unread':
-            #get all unread messages for this user from the database
-            unreadMessages = DB.get_all_unread_messages(self.user_id)
-
-            #send the messages back to the user
-            response = self.newMessage( message_type = 'response' )
-            response['contents']['message'] = unreadMessages
-            self.transport.write(json.dumps(response))
-
-            #when the user views all messages, set flag to reset unread
-            #messages to 0 for all of this users subscriptions
-            self.clear_all_unread = True
-
-        elif json_msg['contents']['message'] == 'get_subscriptions':
-            #I need to get the subscriptions, and send them back to the
-            #user, this way, the user can send me which subscription he
-            #wants to get messages from
-            result = DB.get_subscriptions(self.user_id)
-
-            #extract the names from the tuples in the result, to make life
-            #easier for the client side
-            user_subscriptions = []
-            for row in result:
-                user_subscriptions.append(row[0])
-            
-            #now we simply have a list of user ids who the current user is subscribed to
-            #send the subscriptions back to the user
-            response = self.newMessage( message_type = 'response' )
-            response['contents']['message'] = user_subscriptions 
-            self.transport.write(json.dumps(response))
-
-        elif json_msg['contents']['message'] == 'unread_from_subscription':
-            #get unread messages from a certain subscription 
-            leader = json_msg['contents']['leader_id']
-            unreadMessages = DB.get_unread_messages(self.user_id, leader)
-
-            #send the messages back to the user
-            response = self.newMessage( message_type = 'response' )
-            response['contents']['message'] = unreadMessages
-            self.transport.write(json.dumps(response))
-
-            #the user has now seen this particular subscriptions missed messages
-            #add this leader to the list of subscriptions for which we will reset
-            #the unread count back to 0
-            self.read_subscriptions.append(leader)
-
-        else:
-            #send the messages back to the user
-            response = self.newMessage( message_type = 'response' )
-            response['contents']['message'] = 'fail' 
-            self.transport.write(json.dumps(response))
-
-    if self.debug:
-        print 'in user state'
 
   #========================================================
   #  End State Handling Methods 
   #========================================================
+
+  def handle_offline_messages(self, json_msg):
+      #get all unread messages from all subscriptions for this
+      #user
+      if json_msg['contents']['message'] == 'all_unread':
+          #get all unread messages for this user from the database
+          unreadMessages = DB.get_all_unread_messages(self.user_id)
+
+          #send the messages back to the user
+          response = self.newMessage( message_type = 'response' )
+          response['contents']['message'] = unreadMessages
+          self.transport.write(json.dumps(response))
+
+          #when the user views all messages, set flag to reset unread
+          #messages to 0 for all of this users subscriptions
+          self.clear_all_unread = True
+
+      #get the subscriptions that this user is subscribed to
+      elif json_msg['contents']['message'] == 'get_subscriptions':
+          #I need to get the subscriptions, and send them back to the
+          #user, this way, the user can send me which subscription he
+          #wants to get messages from
+          result = DB.get_subscriptions(self.user_id)
+
+          #extract the names from the tuples in the result, to make life
+          #easier for the client side
+          user_subscriptions = []
+          for row in result:
+              user_subscriptions.append(row[0])
+          
+          #now we simply have a list of user ids who the current user is subscribed to
+          #send the subscriptions back to the user
+          response = self.newMessage( message_type = 'response' )
+          response['contents']['message'] = user_subscriptions 
+          self.transport.write(json.dumps(response))
+
+      #get the unread messages for a particular subscriptions
+      elif json_msg['contents']['message'] == 'unread_from_subscription':
+          #get unread messages from a certain subscription 
+          leader = json_msg['contents']['leader_id']
+          unreadMessages = DB.get_unread_messages(self.user_id, leader)
+
+          #send the messages back to the user
+          response = self.newMessage( message_type = 'response' )
+          response['contents']['message'] = unreadMessages
+          self.transport.write(json.dumps(response))
+
+          #the user has now seen this particular subscriptions missed messages
+          #add this leader to the list of subscriptions for which we will reset
+          #the unread count back to 0
+          self.read_subscriptions.append(leader)
+
+      #the requests we received were not valid, return a fail notice
+      else:
+          #send the messages back to the user
+          response = self.newMessage( message_type = 'response' )
+          response['contents']['message'] = 'fail' 
+          self.transport.write(json.dumps(response))
+      #******************************************************
+      #  End Unread Message Handling
+      #******************************************************
+
+
+  def handle_subscriptions(self, json_msg):
+    #get all subscriptions for this user 
+    if json_msg['contents']['message'] == 'get_subscriptions':
+        #I need to get the subscriptions, and send them back to the
+        #user, this way, the user can send me which subscription he
+        #wants to get messages from
+        result = DB.get_subscriptions(self.user_id)
+
+        #extract the names from the tuples in the result, to make life
+        #easier for the client side
+        user_subscriptions = []
+        for row in result:
+            user_subscriptions.append(row[0])
+        
+        #now we simply have a list of user ids who the current user is subscribed to
+        #send the subscriptions back to the user
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = user_subscriptions 
+        self.transport.write(json.dumps(response))
+      
+    #create a new subscriptions, with self.user_id as the follower, and the
+    #leader in the message the leader
+    elif json_msg['contents']['message'] == 'new_subscription':
+      result = DB.insert_subscription(self.user_id, json_msg['contents']['leader'])
+      if result == None:
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'fail' 
+        self.transport.write(json.dumps(response))
+
+      else:
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'ok' 
+        self.transport.write(json.dumps(response))
+
+    #delete a subscriptions, with self.user_id as the follower, and the
+    #leader in the message the leader
+    elif json_msg['contents']['message'] == 'delete_subscription':
+      result = DB.delete_subscription(self.user_id, json_msg['contents']['leader'])
+
+      if result == None:
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'fail' 
+        self.transport.write(json.dumps(response))
+
+      else:
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'ok' 
+        self.transport.write(json.dumps(response))
+        
+
+    #******************************************************
+    #   End Subscription Handling
+    #******************************************************
+
 
   def isUserRequest(self, json_msg):
     fields = ('sender', 'message_type', 'contents')

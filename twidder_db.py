@@ -140,11 +140,37 @@ class TwidderDB(object):
         else:
             return False
 
+    def insert_subscription(self, user, leader):
+        s = (user, leader, 0)
+        sql = 'INSERT INTO subscribes VALUES (?,?,?)'
+        try:
+            self.db_cursor.execute(sql,s)
+        except sqlite3.Error as e:
+            return None
+
+        self.db_connection.commit()
+        return True 
+
+    def delete_subscription(self, user, leader):
+        sql = 'DELETE FROM subscribes WHERE follower_id="'+user+'" and leader_id="'+leader+'"'
+        try:
+            self.db_cursor.execute(sql)
+        except sqlite3.Error as e:
+            return None
+
+        self.db_connection.commit()
+        return True 
+
 
     def insert_user(self, user, passw):
         u = (user,passw)
-        self.db_cursor.execute('INSERT INTO users VALUES (?,?)', u)
+        try:
+            self.db_cursor.execute('INSERT INTO users VALUES (?,?)', u)
+        except sqlite3.Error as e:
+            return None
+
         self.db_connection.commit()
+        return True 
 
 
     #get the users who are following (subscribed to) leader
@@ -397,6 +423,11 @@ if __name__ == '__main__':
     print 'increment unread for nicks subscription with tom'
     mydb.increment_unread('nick','tom')
 
+
     mydb.print_table('subscribes') 
-
-
+    print 'inserting some subscriptions'
+    mydb.insert_subscription('carla','tom')
+    mydb.insert_subscription('carla','carla')
+    mydb.insert_subscription('ballsdeep69','carla')
+    mydb.insert_subscription('enrique','tom')
+    mydb.print_table('subscribes') 

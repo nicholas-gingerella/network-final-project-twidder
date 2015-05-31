@@ -15,15 +15,17 @@ def sigint_handler(signal, fram):
     sys.exit(0)
 signal.signal(signal.SIGINT,sigint_handler)
 
-
-class TwitterClient:
+class TwidderClient:
 
     def __init__(self, targetHost = '127.0.0.1', portNum = 8000):
         self.username = ''
         self.password = ''
-        self.states = enum('LOGIN','CONNECT','MAIN_MENU','OFFLINE_MAIN',
+        self.states = enum('LOGIN','CONNECT','MAIN_MENU',
                            'OFFLINE_MAIN', 'OFFLINE_ALL', 'OFFLINE_SUBSCRIPTIONS',
-                           'EDIT_SUBSCRIPTIONS','NEW_POST','HASHTAG_SEARCH','LOGOUT'
+                           'SUBSCRIPTIONS_MAIN','SUBSCRIPTIONS_ADD','SUBSCRIPTIONS_DELETE',
+                           'NEW_POST',
+                           'HASHTAG_SEARCH',
+                           'LOGOUT'
                            )
         self.state = self.states.LOGIN
         self.sock = None
@@ -143,8 +145,14 @@ class TwitterClient:
             elif self.state == self.states.OFFLINE_SUBSCRIPTIONS:
                 self.handle_OFFLINE_SUBSCRIPTIONS()
 
-            elif self.state == self.states.EDIT_SUBSCRIPTIONS:
-                self.handle_SUBSCRIPTIONS()
+            elif self.state == self.states.SUBSCRIPTIONS_MAIN:
+                self.handle_SUBSCRIPTIONS_MAIN()
+
+            elif self.state == self.states.SUBSCRIPTIONS_ADD:
+                self.handle_SUBSCRIPTIONS_ADD()
+
+            elif self.state == self.states.SUBSCRIPTIONS_DELETE:
+                self.handle_SUBSCRIPTIONS_DELETE()
 
             elif self.state == self.states.NEW_POST:
                 self.handle_POST()
@@ -233,7 +241,7 @@ class TwitterClient:
         if choice == 1:
             self.state = self.states.OFFLINE_MAIN
         elif choice == 2:
-            self.state = self.states.EDIT_SUBSCRIPTIONS
+            self.state = self.states.SUBSCRIPTIONS_MAIN
         elif choice == 3:
             self.state = self.states.NEW_POST
         elif choice == 4:
@@ -244,7 +252,6 @@ class TwitterClient:
 
     def handle_OFFLINE_MAIN(self):
         choice = self.print_offline_menu_main()
-
         if choice == 1:
           self.state = self.states.OFFLINE_ALL
         if choice == 2:
@@ -259,7 +266,7 @@ class TwitterClient:
         print('***************************\n')
 
         #build request and send to server
-        msg = self.new_message(message_type = 'request')
+        msg = self.new_message(message_type = 'offline_messages')
         msg['contents']['message'] = 'all_unread'
         self.send_data(json.dumps(msg))
         
@@ -286,10 +293,11 @@ class TwitterClient:
         choice = input('**push enter to go back**')
         self.state = self.states.OFFLINE_MAIN
 
+
     def handle_OFFLINE_SUBSCRIPTIONS(self):
         #build request and send to server
         #request a list of subscriptions
-        msg = self.new_message(message_type = 'request')
+        msg = self.new_message(message_type = 'offline_messages')
         msg['contents']['message'] = 'get_subscriptions'
         self.send_data(json.dumps(msg))
         
@@ -315,7 +323,7 @@ class TwitterClient:
             subscription = subscriptions[choice]
 
             #request messages from this subscription 
-            msg = self.new_message(message_type = 'request')
+            msg = self.new_message(message_type = 'offline_messages')
             msg['contents']['message'] = 'unread_from_subscription'
             msg['contents']['leader_id'] = subscriptions[choice]
             self.send_data(json.dumps(msg))
@@ -345,13 +353,125 @@ class TwitterClient:
             input("press enter to continue")
 
 
-    def handle_SUBSCRIPTIONS(self):
-        os.system('clear')
-        print('***************************')
-        print('Your Subscriptions')
-        print('***************************')
-        choice = input('push enter to go back to main')
-        self.state = self.states.MAIN_MENU
+    def handle_SUBSCRIPTIONS_MAIN(self):
+        #request a list of subscriptions
+        msg = self.new_message(message_type = 'subscriptions')
+        msg['contents']['message'] = 'get_subscriptions'
+        self.send_data(json.dumps(msg))
+        
+        #wait for response from server
+        response = self.get_json()
+        subscriptions = response['contents']['message']
+
+        choice = 0
+        while choice < 1 or choice > 3:
+          os.system('clear')
+          print('***************************')
+          print('Your Subscriptions')
+          print('***************************')
+          
+          if len(subscriptions) == 0:
+            print('You have no subscriptions')
+          else:
+            for sub in subscriptions:
+              print(sub)
+          print('***************************')
+          print('1 - Add a subscription')
+          print('2 - Delete a subscription')
+          print('3 - Back to main menu')
+          print('***************************')
+
+          choice = input('enter choice: ')
+          if choice.isnumeric():
+              choice = int(choice)
+          else:
+              choice = 0
+
+          #if I'm trying to add a subscription
+          if choice == 1:
+            #self.state = self.states.SUBSCRIPTIONS_ADD
+            print()
+            print('Who would you like to subscribe to?')
+
+            leader = input('Enter name: ')
+            if leader not in subscriptions and leader != self.username:
+              #create a subscription where this user is following
+              #leader
+              #request to insert new subscription 
+              msg = self.new_message(message_type = 'subscriptions')
+              msg['contents']['message'] = 'new_subscription'
+              msg['contents']['leader'] = leader
+              self.send_data(json.dumps(msg))
+              
+              #wait for response from server
+              response = self.get_json()
+
+              if response['contents']['message'] == 'ok':
+                print('new subscription added')
+              else:
+                print('failed to add subscription (does this user exist?)')
+                choice = 0 #stay in menu loop, don't refresh page
+
+              input('**press enter to continue**')
+            
+            elif leader == self.username:
+              print('You can\'t subscribe to yourself')
+              choice = 0 #hacky way to force us back into this while loop
+              print() 
+              input('**press enter to continue**')
+
+            else:
+              print('You are already subscribed to', leader)
+              choice = 0 #hacky way to force us back into this while loop
+              print() 
+              input('**press enter to continue**')
+
+          #I want to delete a subscription
+          if choice == 2:
+            #self.state = self.states.SUBSCRIPTIONS_DELETE
+            print()
+            print('Who would you like to unsubscribe to?')
+            leader = input('Enter name: ')
+
+            if leader not in subscriptions:
+              print('You don\'t have a subscription to',leader)
+              choice = 0
+              input('**press enter to continue**')
+            else:
+              #send request to delete a subscription
+              msg = self.new_message(message_type = 'subscriptions')
+              msg['contents']['message'] = 'delete_subscription'
+              msg['contents']['leader'] = leader
+              self.send_data(json.dumps(msg))
+              
+              #wait for response from server
+              response = self.get_json()
+
+              if response['contents']['message'] == 'ok':
+                print('Your subscription with',leader,'has been deleted')
+              else:
+                print('failed to delete subscription')
+                choice = 0 #stay in menu loop, don't refresh page
+
+              input('**press enter to continue**')
+
+          #go back to the main menu
+          if choice == 3:
+            self.state = self.states.MAIN_MENU
+
+
+    def handle_SUBSCRIPTIONS_ADD(self):
+      print()
+      print('Who would you like to subscribe to?')
+      leader = input('Enter name: ')
+
+      input('press enter to go back')
+      self.state = self.states.SUBSCRIPTIONS_MAIN
+
+
+    def handle_SUBSCRIPTIONS_DELETE(self):
+      input('press enter to go back')
+      self.state = self.states.SUBSCRIPTIONS_MAIN
 
 
     def handle_POST(self):
@@ -482,5 +602,5 @@ class TwitterClient:
 
 if __name__ == '__main__':
 
-    twidder_user = TwitterClient()
+    twidder_user = TwidderClient()
     twidder_user.run()
