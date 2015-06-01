@@ -146,6 +146,13 @@ class TwidderProtocol(protocol.Protocol):
     user = json_msg["contents"]["message"]["username"]
     user_pass = json_msg["contents"]["message"]["password"]
 
+    #first see if the user is already logged on, if so, refuse
+    if user in self.factory.connected_users:
+        fail_msg = self.newMessage(message_type ='login') 
+        fail_msg['contents']['message'] = 'fail'
+        self.transport.write(json.dumps(fail_msg))
+        return
+
     #if a valid username and password are received, let this user enter the USER state
     if DB.authorize_user(user, user_pass): 
       #assign user name of this connection
