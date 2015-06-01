@@ -89,8 +89,7 @@ class TwidderDB(object):
                           (5, 3),
                           (4, 2),
                           (6, 9),
-                          (7, 9),
-                          (2, 9)
+                          (2, 10)
                         ]
         self.db_cursor.executemany('INSERT INTO describes VALUES (?,?)',new_describes)
 
@@ -106,12 +105,12 @@ class TwidderDB(object):
         '''
         self.db_cursor.execute(subscribes_table)
         new_subscribes = [('nick','tom', 2),
-                          ('nick','enrique',2),
+                          ('nick','enrique', 1),
                           ('enrique','carla',0),
                           ('dustin','tom', 1),
-                          ('tom','enrique',0),
+                          ('tom','enrique', 2),
                           ('carla','dustin', 2),
-                          ('dustin','carla',0)
+                          ('dustin','carla', 1)
                         ]
         self.db_cursor.executemany('INSERT INTO subscribes VALUES (?,?,?)',new_subscribes)
         self.db_connection.commit()
@@ -335,6 +334,19 @@ class TwidderDB(object):
       return self.exec_query(sql)
 
 
+    def get_num_unread(self):
+      sql = '''
+        SELECT SUM(unread) 
+        FROM subscribes 
+      '''
+      result = self.exec_query(sql)
+      print result
+      if result == None:
+        return None
+      else:
+        return result[0][0]
+
+
     #get all posts or a certain users posts
     def get_posts(self, user=None, limit=None):
         sql = ''
@@ -415,103 +427,7 @@ if __name__ == '__main__':
     mydb.print_table('subscribes')
     print "+++++++++++++++++++++++\n"
 
-    print 'All Posts'
-    result = mydb.get_posts()
-    for row in result:
-        print row
-    print ''
-
-    print 'All Subscriptions'
-    result = mydb.get_subscriptions()
-    for row in result:
-        print row
-    print ''
-
-    print 'Nick\'s unread subscriptions'
-    result = mydb.get_unread_subscriptions('nick')
-    for row in result:
-        print row
-    print ''
-
-    print 'Tom\'s unread subscriptions'
-    result = mydb.get_unread_subscriptions('tom')
-    for row in result:
-        print row
-    print ''
-
-    print 'Dustin\'s unread subscriptions'
-    result = mydb.get_unread_subscriptions('dustin')
-    for row in result:
-        print row
-    print ''
-
-    print 'Unread Messages from Nick\'s subscription with Tom'
-    result = mydb.get_unread_messages('nick','tom')
-    for row in result:
-        print row
-    print ''
-
-    print 'Unread Messages from Carla\'s subscription with Dustin'
-    result = mydb.get_unread_messages('carla','dustin')
-    for row in result:
-        print row
-    print ''
-
-    print 'Unread Messages from Enrique\'s subscription with Carla'
-    result = mydb.get_unread_messages('enrique','carla')
-    for row in result:
-        print row
-    print ''
-
-    print 'Unread Messages from Dustin\'s subscription with Tom'
-    result = mydb.get_unread_messages('dustin','tom')
-    for row in result:
-        print row
-    print ''
-
-    print 'Messages that have the hashtag "#bmw"'
-    result = mydb.get_posts_by_tag('#bmw')
-    for row in result:
-        print row
-    print ''
-
-    print 'Nick\'s followers"'
-    result = mydb.get_followers('nick')
-    for row in result:
-        print row
-    print ''
-
-    print 'Enrique\'s followers"'
-    result = mydb.get_followers('enrique')
-    for row in result:
-        print row
-    print ''
-
-    print 'authorize user test'
-    mydb.authorize_user('dustin','wasd')
-
-    print 'all unread messages for nick'
-    result = mydb.get_all_unread_messages('nick')
-
     mydb.print_table('subscribes') 
 
-    print 'clear unread messages for nicks susbcription with tom'
-    mydb.clear_unread('nick','tom')
-
-    mydb.print_table('subscribes') 
-
-    print 'increment unread for nicks subscription with tom'
-    mydb.increment_unread('nick','tom')
-
-
-    mydb.print_table('subscribes') 
-    print 'inserting some subscriptions'
-    mydb.insert_subscription('carla','tom')
-    mydb.insert_subscription('carla','carla')
-    mydb.insert_subscription('ballsdeep69','carla')
-    mydb.insert_subscription('enrique','tom')
-    mydb.print_table('subscribes') 
-    
-
-    print 'test post create'
-    mydb.create_post('nick','fat shit',['stuff'])
+    print 'num unread posts'
+    print(mydb.get_num_unread())

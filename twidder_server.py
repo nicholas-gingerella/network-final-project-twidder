@@ -17,6 +17,7 @@ import threading
 DB = TwidderDB()
 message_count = 0
 user_count = 0
+unread_count = DB.get_num_unread()
 
 class TwidderProtocol(protocol.Protocol):
   current_state = None
@@ -40,7 +41,7 @@ class TwidderProtocol(protocol.Protocol):
   #when a client closes the connection, or the connection is lost,
   #this runs
   def connectionLost(self, reason):
-      global user_count, DB
+      global user_count, unread_count, DB
 
       if self.debug:
         print 'lost connection to client'
@@ -68,11 +69,13 @@ class TwidderProtocol(protocol.Protocol):
       if self.clear_all_unread:
         #database query to reset unread counts for ALL of this users subscriptions
         DB.clear_all_unread(self.user_id)
+        unread_count = DB.get_num_unread()
       else:
         #check self.clear_unread list and reset the unread counts to 0 for all
         #subscriptions where follower is self.user_id and leader_id is self.clear_unread[lead]
         for sub in self.read_subscriptions:
           DB.clear_unread(self.user_id, sub)
+        unread_count = DB.get_num_unread()
 
         
 
@@ -421,6 +424,7 @@ class TwidderProtocol(protocol.Protocol):
           else:
             #update unread count in subscribes table for this user
             DB.increment_unread(user,self.user_id)
+            unread_count = DB.get_num_unread()
   #******************************************************
   #  End Post Handling 
   #******************************************************
@@ -501,13 +505,16 @@ class TwidderFactory(protocol.ServerFactory):
 #thread for getting input from server admin while the
 #reactor framework runs
 def input_thread():
-  while True:
-    cmd = raw_input("admin ~> ")
-    if cmd == 'messagecount':
-      print 'Messages received:',message_count 
-    if cmd == 'usercount':
-      print 'Logged in users:',user_count
-    
+    while True:
+        cmd = raw_input("admin ~> ")
+        if cmd == 'messagecount':
+            print 'Messages received:',message_count 
+        if cmd == 'usercount':
+            print 'Logged in users:',user_count
+        if cmd == 'storedcount':
+            print 'Current number of stored messages:', unread_count 
+            pass
+        
 
 #create thread for getting input
 input_thread = threading.Thread(target=input_thread)
