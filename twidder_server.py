@@ -211,9 +211,13 @@ class TwidderProtocol(protocol.Protocol):
     elif json_msg['message_type'] == 'subscriptions':
       self.handle_subscriptions(json_msg)
 
+    #if the user sent a message regarding posts 
     elif json_msg['message_type'] == 'posts':
       self.handle_posts(json_msg)
 
+    #if the user sent a message regarding hashtags 
+    elif json_msg['message_type'] == 'hashtags':
+      self.handle_hashtags(json_msg)
 
   #========================================================
   #  End State Handling Methods 
@@ -382,9 +386,28 @@ class TwidderProtocol(protocol.Protocol):
           else:
             #update unread count in subscribes table for this user
             DB.increment_unread(user,self.user_id)
-
   #******************************************************
   #  End Post Handling 
+  #******************************************************
+
+
+  def handle_hashtags(self, json_msg):
+    tag = json_msg['contents']['tag']
+
+    #get 10 most recent messages with this hashtag
+    if json_msg['contents']['message'] == 'get_posts':
+        result = DB.get_posts_by_tag(tag,10)
+
+        posts = []
+        for row in result:
+          posts.append(row[1])
+
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = posts 
+        self.transport.write(json.dumps(response))
+
+  #******************************************************
+  #  End Hashtag Handling 
   #******************************************************
 
   def isUserRequest(self, json_msg):

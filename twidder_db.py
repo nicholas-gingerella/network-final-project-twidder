@@ -351,17 +351,19 @@ class TwidderDB(object):
 
     #get all posts who have a certain hashtag
     #returned posts are ordered from most recent to oldest
-    def get_posts_by_tag(self, tag):
+    def get_posts_by_tag(self, tag, limit=None):
         search_tag = tag.lower()
         sql = '''
-            SELECT posts.pid, posts.uid, posts.content 
+            SELECT posts.pid, posts.content 
             FROM posts
             INNER JOIN describes ON describes.post_id=posts.pid
             INNER JOIN hashtags ON hashtags.tid=describes.tag_id
             WHERE
             hashtags.content="'''+search_tag+'''"
-            ORDER BY pid DESC
-        '''
+            ORDER BY pid DESC'''
+        if limit != None:
+          sql += ' LIMIT ' + str(limit)
+
         result = self.exec_query(sql) 
         return result
 

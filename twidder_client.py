@@ -561,12 +561,52 @@ class TwidderClient:
 
 
     def handle_SEARCH(self):
-        os.system('clear')
-        print('***************************')
-        print('Hashtag Search')
-        print('***************************')
-        choice = input('push enter to go back to main')
-        self.state = self.states.MAIN_MENU
+        while True:
+            os.system('clear')
+            print('***************************')
+            print('Hashtag Search')
+            print('***************************')
+            tag = input('Enter a hashtag (enter nothing to go back)\n')
+            print()
+
+            tag.replace(' ','')#get rid of spaces
+            
+            if tag != '':
+                if not tag.startswith('#'):
+                    tag = '#' + tag
+
+                #send request for posts by hashtag
+                msg = self.new_message(message_type = 'hashtags')
+                msg['contents']['message'] = 'get_posts'
+                msg['contents']['tag'] = tag 
+                self.send_data(json.dumps(msg))
+                
+                #wait for response from server
+                response = self.get_json()
+
+                posts = response['contents']['message']
+                
+                #if there are posts display them, if not, say so
+                if len(posts) < 1:
+                    print('-------------------------------')
+                    print('No posts with this hashtag')
+                    print('-------------------------------')
+                    print()
+                else:
+                    print('-------------------------------')
+                    print('Posts with hashtag',tag)
+                    print('-------------------------------')
+                    for post in posts:
+                        print('-',post)
+                    print('-------------------------------')
+                    print()
+
+                input('**press enter to continue**')
+            else:
+                self.state = self.states.MAIN_MENU
+                break
+
+
 
 
     def handle_LOGOUT(self):
