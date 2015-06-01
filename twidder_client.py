@@ -23,6 +23,7 @@ class TwidderClient:
         self.states = enum('LOGIN','CONNECT','MAIN_MENU',
                            'OFFLINE_MAIN', 'OFFLINE_ALL', 'OFFLINE_SUBSCRIPTIONS',
                            'SUBSCRIPTIONS_MAIN','SUBSCRIPTIONS_ADD','SUBSCRIPTIONS_DELETE',
+                           'FOLLOWERS_MAIN',
                            'NEW_POST',
                            'HASHTAG_SEARCH',
                            'LOGOUT'
@@ -176,6 +177,9 @@ class TwidderClient:
             elif self.state == self.states.SUBSCRIPTIONS_DELETE:
                 self.handle_SUBSCRIPTIONS_DELETE()
 
+            elif self.state == self.states.FOLLOWERS_MAIN:
+                self.handle_FOLLOWERS_MAIN()
+
             elif self.state == self.states.NEW_POST:
                 self.handle_POST()
 
@@ -245,6 +249,7 @@ class TwidderClient:
                 else:
                     if self.debug:
                         print('auth refused: bad login credentials')
+
                     print('Invalid login (did you enter the correct username and password?)')
                     input('press enter to continue')
             else:
@@ -269,10 +274,12 @@ class TwidderClient:
         elif choice == 2:
             self.state = self.states.SUBSCRIPTIONS_MAIN
         elif choice == 3:
-            self.state = self.states.NEW_POST
+            self.state = self.states.FOLLOWERS_MAIN
         elif choice == 4:
-            self.state = self.states.HASHTAG_SEARCH
+            self.state = self.states.NEW_POST
         elif choice == 5:
+            self.state = self.states.HASHTAG_SEARCH
+        elif choice == 6:
             self.state = self.states.LOGOUT
 
 
@@ -484,18 +491,30 @@ class TwidderClient:
             self.state = self.states.MAIN_MENU
 
 
-    def handle_SUBSCRIPTIONS_ADD(self):
-      print()
-      print('Who would you like to subscribe to?')
-      leader = input('Enter name: ')
+    def handle_FOLLOWERS_MAIN(self):
+        #request a list of followers 
+        msg = self.new_message(message_type = 'followers')
+        msg['contents']['message'] = 'get_followers'
+        self.send_data(json.dumps(msg))
+        
+        #wait for response from server
+        response = self.get_json()
 
-      input('press enter to go back')
-      self.state = self.states.SUBSCRIPTIONS_MAIN
-
-
-    def handle_SUBSCRIPTIONS_DELETE(self):
-      input('press enter to go back')
-      self.state = self.states.SUBSCRIPTIONS_MAIN
+        followers = response['contents']['message']
+        print('followers')
+        
+        os.system('clear')
+        print('***************************')
+        print('Your Followers')
+        print('***************************')
+        if len(followers) == 0:
+            print('You have no followers')
+        else:
+            for fan in followers:
+                print('-',fan)
+        print('***************************\n')
+        input('**press enter to continue**')
+        self.state = self.states.MAIN_MENU
 
 
     def handle_POST(self):
@@ -611,8 +630,12 @@ class TwidderClient:
 
     def handle_LOGOUT(self):
         print('Closing client...')
-        self.sock.close()
-        sys.exit()
+        #if we got here, then the credentials werent correct, go back to 
+        #login screen
+        self.disconnect()
+        input('goint to lgoin')
+        self.state = self.states.LOGIN
+
     #========================================================
     # End State Handling Methods 
     #========================================================
@@ -642,13 +665,14 @@ class TwidderClient:
         menu += '***************************************\n'
         menu += '1 - See offline messages\n'
         menu += '2 - Edit subscriptions\n'
-        menu += '3 - Make a post\n'
-        menu += '4 - Hashtag search\n'
-        menu += '5 - Logout\n'
+        menu += '3 - View followers\n'
+        menu += '4 - Make a post\n'
+        menu += '5 - Hashtag search\n'
+        menu += '6 - Logout\n'
         menu += '***************************************'
 
         choice = 0
-        while choice < 1 or choice > 5:
+        while choice < 1 or choice > 6:
             print(menu)
             choice = input('enter choice: ')
             if choice.isnumeric():

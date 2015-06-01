@@ -218,6 +218,10 @@ class TwidderProtocol(protocol.Protocol):
     elif json_msg['message_type'] == 'subscriptions':
       self.handle_subscriptions(json_msg)
 
+    #if the user sent a message regarding followers 
+    elif json_msg['message_type'] == 'followers':
+      self.handle_followers(json_msg)
+
     #if the user sent a message regarding posts 
     elif json_msg['message_type'] == 'posts':
       self.handle_posts(json_msg)
@@ -344,6 +348,30 @@ class TwidderProtocol(protocol.Protocol):
     #******************************************************
     #   End Subscription Handling
     #******************************************************
+
+
+  def handle_followers(self, json_msg):
+    #get all subscriptions for this user 
+    if json_msg['contents']['message'] == 'get_followers':
+        #I need to get the subscriptions, and send them back to the
+        #user, this way, the user can send me which subscription he
+        #wants to get messages from
+        result = DB.get_followers(self.user_id)
+
+        #extract the names from the tuples in the result, to make life
+        #easier for the client side
+        followers = []
+        for row in result:
+            followers.append(row)
+        
+        #now we simply have a list of user ids who the current user is subscribed to
+        #send the subscriptions back to the user
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = followers 
+        self.transport.write(json.dumps(response))
+  #******************************************************
+  #   End Followers Handling
+  #******************************************************
 
 
   def handle_posts(self, json_msg):
