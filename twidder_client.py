@@ -629,11 +629,9 @@ class TwidderClient:
 
 
     def handle_LOGOUT(self):
-        print('Closing client...')
         #if we got here, then the credentials werent correct, go back to 
         #login screen
         self.disconnect()
-        input('goint to lgoin')
         self.state = self.states.LOGIN
 
     #========================================================
