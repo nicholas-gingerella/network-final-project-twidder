@@ -7,6 +7,7 @@ from twisted.internet.defer import Deferred
 from twisted.protocols import basic
 from myEnum import enum
 from twidder_db import TwidderDB
+import time
 import sys
 import signal
 import json
@@ -151,7 +152,7 @@ class TwidderProtocol(protocol.Protocol):
       self.user_id = user
 
       #add user to connected users
-      self.factory.connected_users[user] = self
+      self.factory.connected_users[user] = {'server_line':self, 'chat_line':None}
 
       #update current user count
       self.factory.connected_user_count = len(self.factory.connected_users)
@@ -209,6 +210,9 @@ class TwidderProtocol(protocol.Protocol):
     #if the user sent a message regarding subscriptions
     elif json_msg['message_type'] == 'subscriptions':
       self.handle_subscriptions(json_msg)
+
+    elif json_msg['message_type'] == 'posts':
+      self.handle_posts(json_msg)
 
 
   #========================================================
@@ -301,6 +305,7 @@ class TwidderProtocol(protocol.Protocol):
     #leader in the message the leader
     elif json_msg['contents']['message'] == 'new_subscription':
       result = DB.insert_subscription(self.user_id, json_msg['contents']['leader'])
+
       if result == None:
         response = self.newMessage( message_type = 'response' )
         response['contents']['message'] = 'fail' 
@@ -325,12 +330,62 @@ class TwidderProtocol(protocol.Protocol):
         response = self.newMessage( message_type = 'response' )
         response['contents']['message'] = 'ok' 
         self.transport.write(json.dumps(response))
-        
-
     #******************************************************
     #   End Subscription Handling
     #******************************************************
 
+
+  def handle_posts(self, json_msg):
+    if json_msg['contents']['message'] == 'get_posts':
+      result = DB.get_posts(self.user_id,10)
+      result = self.removeDuplicates(result) #remove duplicates from post (buggy query maybe :/)
+
+      user_posts = []
+      for row in result:
+          user_posts.append(row[1])
+
+      #now we simply have a list of user ids who the current user is subscribed to
+      #send the subscriptions back to the user
+      response = self.newMessage( message_type = 'response' )
+      response['contents']['message'] = user_posts 
+      self.transport.write(json.dumps(response))
+
+    if json_msg['contents']['message'] == 'create_post':
+      post_content = json_msg['contents']['post']
+      post_tags = json_msg['contents']['tags']
+      result = DB.create_post(self.user_id, post_content, post_tags)
+
+      if result == None:
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'fail' 
+        self.transport.write(json.dumps(response))
+
+      else:
+        #send response back to poster
+        response = self.newMessage( message_type = 'response' )
+        response['contents']['message'] = 'ok' 
+        self.transport.write(json.dumps(response))
+
+        #anyone who is subscribed to this user, update unread count
+        #by 1 if they are not connected
+        #get this user's followers
+        followers = DB.get_followers(self.user_id)
+        followers = self.removeDuplicates(followers)
+        for user in followers:
+          if user in self.factory.connected_users:
+            #forward the message directly to them
+            #TODO: Will probably have the each user have two connections, one for
+            #talking with the server (protocols in connected_users)
+            #and one for simply receiving messages (self.factory.connected_users["user"]["chat_line"])
+            #self.transport.write(self.factory.connected_users["user"])
+            print 'sent directly to user',user
+          else:
+            #update unread count in subscribes table for this user
+            DB.increment_unread(user,self.user_id)
+
+  #******************************************************
+  #  End Post Handling 
+  #******************************************************
 
   def isUserRequest(self, json_msg):
     fields = ('sender', 'message_type', 'contents')
@@ -363,6 +418,11 @@ class TwidderProtocol(protocol.Protocol):
     new_msg["contents"] = {"message":''}
     return new_msg
 
+  def removeDuplicates(self,seq):
+    seen = set()
+    seen_add = seen.add
+    return [ x for x in seq if not (x in seen or seen_add(x))]
+
 
 
 #stores info common to all connections
@@ -371,13 +431,6 @@ class TwidderFactory(protocol.ServerFactory):
     
     #enumerations as state variables
     twidder_states = enum('LOGIN', 'USER')
-
-    #if a user is not logged in when a message arrives, it is stored in the offline messages
-    #dictionary. When they log on and request the offline messages, they will all be sent to
-    #the user
-    offline_messages = {"user1":[]}
-    user_subscriptions = {"user1":['user3'], "user2":['user1','user3'], "user3":[]}
-
     connected_user_count = 0
     msg_recv_count = 0
 

@@ -29,6 +29,8 @@ class TwidderClient:
                            )
         self.state = self.states.LOGIN
         self.sock = None
+        self.msg_sock = None
+        self.msg_thread = None
         self.host = targetHost
         self.port = portNum
         self.debug = False
@@ -72,12 +74,32 @@ class TwidderClient:
             sys.exit()
 
 
+    def get_msg_socket(self):
+        # try to create a socket, if creation of socket fails, then simply
+        # kill the client
+        try:
+            self.msg_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        except OSError as e:
+            print("ERROR:",e)
+            sys.exit()
+
+
     def connect(self):
         self.get_socket()
         try:
             self.sock.connect((self.host,self.port))
         except:
             print('connection refused')
+            sys.exit()
+
+
+    #connect a differnt socket for receiving messages from other posters
+    def msg_connect(self):
+        self.get_msg_socket()
+        try:
+            self.msg_sock.connect((self.host,self.port)) #connect to same server, but from different socket
+        except:
+            print('msg connection refused')
             sys.exit()
 
 
@@ -214,6 +236,10 @@ class TwidderClient:
                 if content["message"] == 'ok':
                     if self.debug:
                         print('auth accepted, now logging in')
+
+                    #TODO: need to create another connection for receiving chat
+                    #messages, then I need to start a new thread that will receive
+                    #messages from the twidder server
                     self.state = self.states.MAIN_MENU
                     return
                 else:
@@ -369,12 +395,11 @@ class TwidderClient:
           print('***************************')
           print('Your Subscriptions')
           print('***************************')
-          
           if len(subscriptions) == 0:
             print('You have no subscriptions')
           else:
             for sub in subscriptions:
-              print(sub)
+              print('-',sub)
           print('***************************')
           print('1 - Add a subscription')
           print('2 - Delete a subscription')
@@ -389,7 +414,6 @@ class TwidderClient:
 
           #if I'm trying to add a subscription
           if choice == 1:
-            #self.state = self.states.SUBSCRIPTIONS_ADD
             print()
             print('Who would you like to subscribe to?')
 
@@ -475,12 +499,65 @@ class TwidderClient:
 
 
     def handle_POST(self):
-        os.system('clear')
-        print('***************************')
-        print('New Post')
-        print('***************************')
-        choice = input('push enter to go back to main')
-        self.state = self.states.MAIN_MENU
+        #request a list of 5 most recent posts
+        msg = self.new_message(message_type = 'posts')
+        msg['contents']['message'] = 'get_posts'
+        self.send_data(json.dumps(msg))
+        
+        #wait for response from server
+        response = self.get_json()
+        posts = response['contents']['message']
+
+        choice = 0
+        while choice < 1 or choice > 3:
+            os.system('clear')
+            print('**********************************************')
+            print('Posts')
+            print('**********************************************')
+            if len(posts) == 0:
+                print('You have no posts')
+            else:
+                for p in posts:
+                    print('-',p)
+            print('**********************************************')
+            print('1 - Make a new post')
+            print('2 - Back to main menu')
+            print('**********************************************')
+            choice = input('enter choice: ')
+            if choice.isnumeric():
+                choice = int(choice)
+            else:
+                choice = 0
+            
+            if choice == 1:
+                print()
+                new_post = input('Enter post: ')
+                print()
+                print('Enter hashtags for this post, seperated by spaces')
+                print('Example: #tag1 #tag2 #tag3 #tag4')
+                post_tags = input('Hashtags: ')
+
+                tag_list = post_tags.split()
+
+                #send a request to create the post
+                msg = self.new_message(message_type = 'posts')
+                msg['contents']['message'] = 'create_post'
+                msg['contents']['post'] = new_post
+                msg['contents']['tags'] = tag_list
+                self.send_data(json.dumps(msg))
+                
+                #wait for response from server
+                response = self.get_json()
+
+                if response['contents']['message'] == 'ok':
+                    print('Post created')
+                    input('**press enter to continue**')
+                else:
+                    print('Failed to create post')
+                    choice = 0 #stay in menu loop, don't refresh page
+
+            elif choice == 2:
+                self.state = self.states.MAIN_MENU
 
 
     def handle_SEARCH(self):

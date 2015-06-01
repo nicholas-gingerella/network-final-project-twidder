@@ -31,7 +31,7 @@ class TwidderDB(object):
 
         posts_table = '''
         CREATE TABLE posts (
-            pid INTEGER PRIMARY KEY AUTOINCREMENT,
+            pid INTEGER PRIMARY KEY,
             uid TEXT NOT NULL, 
             content TEXT NOT NULL,
             FOREIGN KEY(uid) REFERENCES users(uid)
@@ -56,8 +56,8 @@ class TwidderDB(object):
 
         hashtags_table = '''
         CREATE TABLE hashtags (
-            tid INTEGER PRIMARY KEY AUTOINCREMENT,
-            content TEXT NOT NULL
+            tid INTEGER NOT NULL PRIMARY KEY,
+            content TEXT NOT NULL UNIQUE
         )
         '''
         self.db_cursor.execute(hashtags_table)
@@ -74,11 +74,11 @@ class TwidderDB(object):
 
         describes_table = '''
         CREATE TABLE describes (
-            tag_id INTEGER,
-            post_id INTEGER, 
-            PRIMARY KEY(tag_id, post_id),
+            tag_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL, 
+            FOREIGN KEY(post_id) REFERENCES posts(pid),
             FOREIGN KEY(tag_id) REFERENCES hashtags(tid),
-            FOREIGN KEY(post_id) REFERENCES posts(pid)
+            PRIMARY KEY(tag_id, post_id)
         )
         '''
         self.db_cursor.execute(describes_table)
@@ -140,6 +140,7 @@ class TwidderDB(object):
         else:
             return False
 
+
     def insert_subscription(self, user, leader):
         s = (user, leader, 0)
         sql = 'INSERT INTO subscribes VALUES (?,?,?)'
@@ -150,6 +151,7 @@ class TwidderDB(object):
 
         self.db_connection.commit()
         return True 
+
 
     def delete_subscription(self, user, leader):
         sql = 'DELETE FROM subscribes WHERE follower_id="'+user+'" and leader_id="'+leader+'"'
@@ -176,12 +178,17 @@ class TwidderDB(object):
     #get the users who are following (subscribed to) leader
     def get_followers(self, leader):
         sql = '''
-            SELECT follower_id 
+            SELECT DISTINCT follower_id 
             FROM subscribes
             WHERE leader_id="'''+leader+'''"
         '''
         result = self.exec_query(sql)
-        return result
+        
+        clean_result = []
+        for row in result:
+          clean_result.append(row[0])
+
+        return clean_result 
 
 
     #the toughest query so far, getting the most recent unread posts from one of the subscribers you are currently
@@ -261,13 +268,84 @@ class TwidderDB(object):
         self.exec_query(sql)
 
 
+    def create_post(self,user,content,hashtags):
+      #use cursor.lastrowid for getting the id of the post that these
+      #hashtags are to be associated with
+
+      tags = []
+      for tag in hashtags:
+        if not tag.startswith('#'):
+          #prepend # to tag
+          tag = '#' + tag
+        tags.append(tag)
+
+      #first insert the  new post into the database
+      p = (user,content)
+      sql = '''
+        INSERT INTO posts (uid,content) VALUES (?,?)
+      '''
+      try:
+        self.db_cursor.execute(sql,p)
+      except sqlite3.Error as e:
+        #print 'POST INSERT ERROR:',e
+        return None 
+
+      #get id of post we just made
+      post_id = self.db_cursor.lastrowid
+
+      #now go through list of hashtags, and insert them into
+      #the database (but only do all this if we have hashtags)
+      if len(tags) > 0:
+        for tag in tags:
+          t = (tag,)
+          sql = '''
+            INSERT INTO hashtags (content) VALUES (?)
+          '''
+          try:
+            self.db_cursor.execute(sql,t)
+          except sqlite3.Error as e:
+            #print 'HASHTAG INSERT ERROR:',e
+            pass
+
+        #the hashtags are now in the database
+        #now associate all of the hashtag ids
+        #with the post id via the describes table
+        for tag in tags:
+          tid = self.get_hashtag_id(tag)[0][0]
+          d = (tid, post_id)
+          sql = '''
+            INSERT INTO describes (tag_id,post_id) VALUES (?,?)
+          '''
+          try:
+            self.db_cursor.execute(sql,d)
+          except sqlite3.Error as e:
+            #print 'DESCRIBES INSERT ERROR:',e
+            pass
+
+      return True
+          
+
+
+    def get_hashtag_id(self,tag):
+      sql = '''
+        SELECT tid
+        FROM hashtags
+        WHERE content="'''+tag+'''"
+      '''
+      return self.exec_query(sql)
+
+
     #get all posts or a certain users posts
-    def get_posts(self, user=None):
+    def get_posts(self, user=None, limit=None):
         sql = ''
         if user != None:
-            sql = 'SELECT * FROM posts WHERE uid="'+user+'" ORDER BY pid DESC'
+            sql = 'SELECT DISTINCT pid, content FROM posts WHERE uid="'+user+'" ORDER BY pid DESC'
         else:
-            sql = 'SELECT * FROM posts ORDER BY pid DESC'
+            sql = 'SELECT DISTINCT pid, content FROM posts ORDER BY pid DESC'
+
+        if limit != None and limit > 0:
+            sql += ' LIMIT ' + str(limit)
+
         return self.exec_query(sql)
 
 
@@ -431,3 +509,7 @@ if __name__ == '__main__':
     mydb.insert_subscription('ballsdeep69','carla')
     mydb.insert_subscription('enrique','tom')
     mydb.print_table('subscribes') 
+    
+
+    print 'test post create'
+    mydb.create_post('nick','fat shit',['stuff'])
