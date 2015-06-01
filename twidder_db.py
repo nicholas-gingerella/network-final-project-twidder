@@ -340,7 +340,6 @@ class TwidderDB(object):
         FROM subscribes 
       '''
       result = self.exec_query(sql)
-      print result
       if result == None:
         return None
       else:
