@@ -150,11 +150,24 @@ class TwidderProtocol(protocol.Protocol):
     user_pass = json_msg["contents"]["message"]["password"]
 
     #first see if the user is already logged on, if so, refuse
-    if user in self.factory.connected_users:
+    if user in self.factory.connected_users and json_msg['message_type'] == 'login':
         fail_msg = self.newMessage(message_type ='login') 
         fail_msg['contents']['message'] = 'fail'
         self.transport.write(json.dumps(fail_msg))
         return
+
+    if json_msg['message_type'] == 'login_live':
+      if user in self.factory.connected_users:
+        self.factory.connected_users[user]['chat_line'] = self
+        msg = self.newMessage(message_type ='login') 
+        msg['contents']['message'] = 'ok'
+        self.transport.write(json.dumps(msg))
+      else:
+        msg = self.newMessage(message_type ='login') 
+        msg['contents']['message'] = 'fail'
+        self.transport.write(json.dumps(msg))
+      return
+
 
     #if a valid username and password are received, let this user enter the USER state
     if DB.authorize_user(user, user_pass): 
@@ -196,8 +209,6 @@ class TwidderProtocol(protocol.Protocol):
 
 
   def handle_USER(self, data):
-    #NOTE: may need to move this to all other handler functions
-    #ie: handdle_offline_messages, etc..
     global DB
 
     #take the received data and decode it as a JSON object, if possible
@@ -411,16 +422,15 @@ class TwidderProtocol(protocol.Protocol):
         #anyone who is subscribed to this user, update unread count
         #by 1 if they are not connected
         #get this user's followers
+        live_response = self.newMessage( message_type = 'response' )
+        live_response['contents']['message'] = {'sender':self.user_id,'post':post_content} 
+
         followers = DB.get_followers(self.user_id)
         followers = self.removeDuplicates(followers)
         for user in followers:
           if user in self.factory.connected_users:
-            #forward the message directly to them
-            #TODO: Will probably have the each user have two connections, one for
-            #talking with the server (protocols in connected_users)
-            #and one for simply receiving messages (self.factory.connected_users["user"]["chat_line"])
-            #self.transport.write(self.factory.connected_users["user"])
-            print 'sent directly to user',user
+            #forward the message directly to them on their message connection
+            self.factory.connected_users[user]['chat_line'].transport.write(json.dumps(live_response))
           else:
             #update unread count in subscribes table for this user
             DB.increment_unread(user,self.user_id)
@@ -439,7 +449,7 @@ class TwidderProtocol(protocol.Protocol):
 
         posts = []
         for row in result:
-          posts.append(row[1])
+          posts.append((row[1],row[2]))
 
         response = self.newMessage( message_type = 'response' )
         response['contents']['message'] = posts 
@@ -462,7 +472,7 @@ class TwidderProtocol(protocol.Protocol):
     if all (field in json_msg for field in fields):
       if self.debug:
         print 'all login request fields are present'
-      if json_msg['message_type'] == 'login':
+      if json_msg['message_type'] == 'login' or json_msg['message_type'] == 'login_live':
         if self.debug:
           print 'message type is a login'
         if 'username' in json_msg['contents']['message'] and 'password' in json_msg['contents']['message']:

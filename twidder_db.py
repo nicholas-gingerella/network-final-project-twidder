@@ -322,7 +322,6 @@ class TwidderDB(object):
             pass
 
       return True
-          
 
 
     def get_hashtag_id(self,tag):
@@ -365,7 +364,7 @@ class TwidderDB(object):
     def get_posts_by_tag(self, tag, limit=None):
         search_tag = tag.lower()
         sql = '''
-            SELECT posts.pid, posts.content 
+            SELECT posts.pid, posts.content, posts.uid 
             FROM posts
             INNER JOIN describes ON describes.post_id=posts.pid
             INNER JOIN hashtags ON hashtags.tid=describes.tag_id

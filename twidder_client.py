@@ -5,6 +5,7 @@ import errno
 import sys
 import signal
 import time
+import threading
 import json
 from getpass import getpass
 from myEnum import enum
@@ -106,6 +107,8 @@ class TwidderClient:
 
     def disconnect(self):
         self.sock.close()
+        if self.msg_sock != None:
+            self.msg_sock.close()
 
 
     def send_data(self, data):
@@ -115,11 +118,26 @@ class TwidderClient:
             print('ERROR:',e)
 
 
+    def send_msg_data(self, data):
+        try:
+            self.msg_sock.sendall(data.encode())
+        except OSError as e:
+            print('ERROR:',e)
+
+
     def get_data(self):
         try:
             data = self.sock.recv(4096)
         except OSError as e:
             print("ERROR:",e)
+        data = data.decode()
+        return data
+
+    def get_msg_data(self):
+        try:
+            data = self.msg_sock.recv(4096)
+        except OSError as e:
+            pass
         data = data.decode()
         return data
 
@@ -146,6 +164,39 @@ class TwidderClient:
             print(json.dumps(json_data, indent=4))
 
         return json_data
+
+
+
+    def get_msg_json(self):
+        data = None
+
+        try:
+            data = self.msg_sock.recv(4096)
+        except OSError as e:
+            return False
+
+        if self.debug:
+            print('data before decode:',data)
+
+        if data == None:
+            return False
+
+        data = data.decode()
+        if self.debug:
+            print('data after decode:')
+            print(json.dumps(data,indent=4))
+        try:
+            json_data = json.loads(data)
+        except:
+            return
+            print('ERROR: failed to load json (is the message proper JSON?)')
+
+        if self.debug:
+            print('received json data:')
+            print(json.dumps(json_data, indent=4))
+
+        return json_data
+
 
 
     def run(self):
@@ -244,8 +295,32 @@ class TwidderClient:
                     #TODO: need to create another connection for receiving chat
                     #messages, then I need to start a new thread that will receive
                     #messages from the twidder server
+
+                    #now try to create another connection, but this one will
+                    #be for a different socket, one meant only to receive live messages
+                    self.msg_connect()
+
+                    #create a login message for the live feed for this user
+                    msg = self.new_message(message_type = 'login_live')
+                    msg['contents']['message'] = {  "username":self.username,
+                                                    "password":self.password}
+                    self.send_msg_data(json.dumps(msg))
+
+                    #wait for response from server
+                    #or wait for timeout
+                    response = self.get_msg_json()
+                    if response['contents']['message'] == 'ok':
+                        #create thread, do something
+                        self.msg_thread = threading.Thread(target=self.live_feed)
+                        self.msg_thread.daemon = True
+                        self.msg_thread.start()
+                    else:
+                        print('live feed connect failed')
+                        input('press enter')
+                        
                     self.state = self.states.MAIN_MENU
                     return
+
                 else:
                     if self.debug:
                         print('auth refused: bad login credentials')
@@ -616,7 +691,7 @@ class TwidderClient:
                     print('Posts with hashtag',tag)
                     print('-------------------------------')
                     for post in posts:
-                        print('-',post)
+                        print('- [{n}]: {p}'.format(n=post[1],p=post[0]))
                     print('-------------------------------')
                     print()
 
@@ -735,6 +810,20 @@ class TwidderClient:
           print('choice is valid!')
       return choice-1
 
+
+    def live_feed(self):
+        sender = ''
+        post = ''
+        while True:
+            response = self.get_msg_json()
+            if response == False or response == None:
+                return
+            sender = response['contents']['message']['sender']
+            post = response['contents']['message']['post']
+            print('\n--------------------------------------------------------------')
+            print('[{name}] posted: {msg}'.format(name=sender,msg=post))
+            print('--------------------------------------------------------------')
+                
 
 #end of twidder client class 
 
