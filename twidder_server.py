@@ -7,6 +7,7 @@ from twisted.internet.defer import Deferred
 from twisted.protocols import basic
 from myEnum import enum
 from twidder_db import TwidderDB
+from getpass import getpass
 import time
 import sys
 import signal
@@ -526,7 +527,12 @@ def input_thread():
         if cmd == 'storedcount':
             print 'Current number of stored messages:', unread_count 
         if cmd == 'newuser':
-            DB.print_table('posts')
+            name = raw_input('new username: ')
+            passw = getpass('new password: ')
+            if DB.insert_user(name,passw):
+                print 'new user created'
+            else:
+                print 'user already exists'
         
 
 #create thread for getting input
