@@ -14,7 +14,7 @@ import json
 import threading
 
 #globals that are used for
-DB = TwidderDB()
+DB = TwidderDB('testdb')
 message_count = 0
 user_count = 0
 unread_count = DB.get_num_unread()
@@ -446,6 +446,7 @@ class TwidderProtocol(protocol.Protocol):
     #get 10 most recent messages with this hashtag
     if json_msg['contents']['message'] == 'get_posts':
         result = DB.get_posts_by_tag(tag,10)
+        result = self.removeDuplicates(result)
 
         posts = []
         for row in result:
@@ -515,6 +516,7 @@ class TwidderFactory(protocol.ServerFactory):
 #thread for getting input from server admin while the
 #reactor framework runs
 def input_thread():
+    DB = TwidderDB('testdb') 
     while True:
         cmd = raw_input("admin ~> ")
         if cmd == 'messagecount':
@@ -523,7 +525,8 @@ def input_thread():
             print 'Logged in users:',user_count
         if cmd == 'storedcount':
             print 'Current number of stored messages:', unread_count 
-            pass
+        if cmd == 'newuser':
+            DB.print_table('posts')
         
 
 #create thread for getting input

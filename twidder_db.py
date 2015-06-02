@@ -15,22 +15,25 @@ class TwidderDB(object):
 
         #create tables for database
         user_table = '''
-        CREATE TABLE users(
+        CREATE TABLE IF NOT EXISTS users(
             uid TEXT PRIMARY KEY,
             password TEXT NOT NULL
         )
         '''
         self.db_cursor.execute(user_table)
-        new_users = [('nick','asdf'),
-                     ('tom','1234'),
-                     ('dustin','wasd'),
-                     ('carla','qwerty'),
-                     ('enrique','password')
-                    ]
-        self.db_cursor.executemany('INSERT INTO users VALUES (?,?)', new_users)
+
+        self.db_cursor.execute('select * from users')
+        if len(self.db_cursor.fetchall()) < 1:
+          new_users = [('nick','asdf'),
+                       ('tom','asdf'),
+                       ('dustin','asdf'),
+                       ('carla','asdf'),
+                       ('enrique','asdf')
+                      ]
+          self.db_cursor.executemany('INSERT INTO users VALUES (?,?)', new_users)
 
         posts_table = '''
-        CREATE TABLE posts (
+        CREATE TABLE IF NOT EXISTS posts (
             pid INTEGER PRIMARY KEY,
             uid TEXT NOT NULL, 
             content TEXT NOT NULL,
@@ -38,42 +41,32 @@ class TwidderDB(object):
         )
         '''
         self.db_cursor.execute(posts_table)
-        new_posts = [(0,'nick','I loves da Twidderz!'),
-                     (1,'nick','What does BMW stand for? If I had to take a guess I\'d say Big Meaty Women.'),
-                     (2,'tom','When nick has a heart attack, I will lol so hard!'),
-                     (3,'dustin','doors...how do they work?'),
-                     (4,'dustin','I really like the Macs that have the graphics card!'),
-                     (5,'dustin','I luv Ham! :)'),
-                     (6,'dustin','Die in a fire...with all due respect :)'),
-                     (7,'carla','Henk Henk'),
-                     (8,'tom','Beer will solve all of our problems!'),
-                     (9,'enrique','Crickets are pretty tasty, especially the brown ones!'),
-                     (10,'enrique','GERMAN ENGINEERING!'),
-                     (11,'enrique','porkay no lost toast?'),
-                     (12,'tom','....unless you get a DUI')
-                    ]
-        self.db_cursor.executemany('INSERT INTO posts VALUES (?,?,?)',new_posts)
+
+        self.db_cursor.execute('select * from posts')
+        if len(self.db_cursor.fetchall()) < 1:
+          new_posts = [(0,'nick','I loves da Twidderz!'),
+                       (1,'tom','I too enjoy the Twidderz.'),
+                       (2,'dustin','I hate Twidder...')
+                      ]
+          self.db_cursor.executemany('INSERT INTO posts VALUES (?,?,?)',new_posts)
 
         hashtags_table = '''
-        CREATE TABLE hashtags (
+        CREATE TABLE IF NOT EXISTS hashtags (
             tid INTEGER NOT NULL PRIMARY KEY,
             content TEXT NOT NULL UNIQUE
         )
         '''
         self.db_cursor.execute(hashtags_table)
-        new_hashtags = [(0,'#justpsychoticthings'),
-                        (1,'#yoloswag420'),
-                        (2,'#bmw'),
-                        (3,'#howdoesitwork'),
-                        (4,'#geese'),
-                        (5,'#ham'),
-                        (6,'#germans'),
-                        (7,'#engineering'),
-                       ]
-        self.db_cursor.executemany('INSERT INTO hashtags VALUES (?,?)',new_hashtags)
+
+        self.db_cursor.execute('select * from hashtags')
+        if len(self.db_cursor.fetchall()) < 1:
+          new_hashtags = [(0,'#twidder'),
+                          (1,'#troll'),
+                         ]
+          self.db_cursor.executemany('INSERT INTO hashtags VALUES (?,?)',new_hashtags)
 
         describes_table = '''
-        CREATE TABLE describes (
+        CREATE TABLE IF NOT EXISTS describes (
             tag_id INTEGER NOT NULL,
             post_id INTEGER NOT NULL, 
             FOREIGN KEY(post_id) REFERENCES posts(pid),
@@ -82,19 +75,18 @@ class TwidderDB(object):
         )
         '''
         self.db_cursor.execute(describes_table)
-        new_describes = [ (0, 1),
-                          (3, 2),
-                          (4, 0),
-                          (2, 1),
-                          (5, 3),
-                          (4, 2),
-                          (6, 9),
-                          (2, 10)
-                        ]
-        self.db_cursor.executemany('INSERT INTO describes VALUES (?,?)',new_describes)
+
+        self.db_cursor.execute('select * from describes')
+        if len(self.db_cursor.fetchall()) < 1:
+          new_describes = [ (0, 0),
+                            (0, 1),
+                            (0, 2),
+                            (1, 2)
+                          ]
+          self.db_cursor.executemany('INSERT INTO describes VALUES (?,?)',new_describes)
 
         subscribes_table = '''
-        CREATE TABLE subscribes (
+        CREATE TABLE IF NOT EXISTS subscribes (
             follower_id TEXT,
             leader_id TEXT, 
             unread INTEGER NOT NULL DEFAULT 0,
@@ -104,15 +96,13 @@ class TwidderDB(object):
         )
         '''
         self.db_cursor.execute(subscribes_table)
-        new_subscribes = [('nick','tom', 2),
-                          ('nick','enrique', 1),
-                          ('enrique','carla',0),
-                          ('dustin','tom', 1),
-                          ('tom','enrique', 2),
-                          ('carla','dustin', 2),
-                          ('dustin','carla', 1)
-                        ]
-        self.db_cursor.executemany('INSERT INTO subscribes VALUES (?,?,?)',new_subscribes)
+
+        self.db_cursor.execute('select * from subscribes')
+        if len(self.db_cursor.fetchall()) < 1:
+          new_subscribes = [('nick','tom', 0),
+                            ('dustin','nick', 0)
+                          ]
+          self.db_cursor.executemany('INSERT INTO subscribes VALUES (?,?,?)',new_subscribes)
         self.db_connection.commit()
 
 
