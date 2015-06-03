@@ -640,6 +640,16 @@ class TwidderClient:
             if choice == 1:
                 print()
                 new_post = input('Enter post: ')
+                if new_post == '':
+                    choice = 0
+                    continue
+                else:
+                    if len(new_post) > 140:
+                        print('Your post cannot exceed 140 characters')
+                        input('**press enter to continue**')
+                        choice = 0
+                        continue
+                        
                 print()
                 print('Enter hashtags for this post, seperated by spaces')
                 print('Example: #tag1 #tag2 #tag3 #tag4')
