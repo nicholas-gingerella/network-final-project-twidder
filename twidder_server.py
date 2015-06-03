@@ -2,13 +2,15 @@
 #File: twidder_server.py
 #Author: Nicholas Gingerella
 
+from base64 import *
 from twisted.internet import reactor, protocol, endpoints
 from twisted.internet.defer import Deferred
 from twisted.protocols import basic
-from myEnum import enum
+from twidder_utilities import *
 from twidder_db import TwidderDB
 from getpass import getpass
 import time
+import os
 import sys
 import signal
 import json
@@ -147,8 +149,10 @@ class TwidderProtocol(protocol.Protocol):
 
 
     #get the username and password from the received message
+    #unencrypt the password
     user = json_msg["contents"]["message"]["username"]
     user_pass = json_msg["contents"]["message"]["password"]
+
 
     #first see if the user is already logged on, if so, refuse
     if user in self.factory.connected_users and json_msg['message_type'] == 'login':
@@ -171,7 +175,12 @@ class TwidderProtocol(protocol.Protocol):
 
 
     #if a valid username and password are received, let this user enter the USER state
-    if DB.authorize_user(user, user_pass): 
+    raw_password = b64decode(user_pass)
+    #print 'Login Attempt:'
+    #print 'username =',user
+    #print 'encoded pass =',user_pass
+    #print 'decoded pass =',raw_password
+    if DB.authorize_user(user, raw_password): 
       #assign user name of this connection
       self.user_id = user
 
@@ -520,19 +529,22 @@ def input_thread():
     DB = TwidderDB('testdb') 
     while True:
         cmd = raw_input("admin ~> ")
-        if cmd == 'messagecount':
+        if cmd == 'clear':
+            os.system('clear')
+        elif cmd == 'messagecount':
             print 'Messages received:',message_count 
-        if cmd == 'usercount':
+        elif cmd == 'usercount':
             print 'Logged in users:',user_count
-        if cmd == 'storedcount':
+        elif cmd == 'storedcount':
             print 'Current number of stored messages:', unread_count 
-        if cmd == 'newuser':
+        elif cmd == 'newuser':
             name = raw_input('new username: ')
             passw = getpass('new password: ')
             if DB.insert_user(name,passw):
                 print 'new user created'
             else:
                 print 'user already exists'
+        print ''
         
 
 #create thread for getting input

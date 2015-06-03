@@ -1,5 +1,6 @@
 #!/bin/env/python
 import socket
+from base64 import *
 import os
 import errno
 import sys
@@ -8,7 +9,7 @@ import time
 import threading
 import json
 from getpass import getpass
-from myEnum import enum
+from twidder_utilities import *
 
 #signal handler for ctrl-c (SIGINT)
 def sigint_handler(signal, fram):
@@ -252,6 +253,7 @@ class TwidderClient:
         print('**************************')
         self.username = input('username:').strip()
         self.password = getpass('password:')
+
         self.state = self.states.CONNECT
 
 
@@ -265,9 +267,10 @@ class TwidderClient:
         self.connect()
 
         #will send a json string to server
+        encoded_password = b64encode(self.password.encode('ascii')).decode()
         msg = self.new_message(message_type = 'login')
         msg['contents']['message'] = {  "username":self.username,
-                                        "password":self.password}
+                                        "password":encoded_password}
 
         #send the json object encoded as a string
         if self.debug:
@@ -291,10 +294,6 @@ class TwidderClient:
                 if content["message"] == 'ok':
                     if self.debug:
                         print('auth accepted, now logging in')
-
-                    #TODO: need to create another connection for receiving chat
-                    #messages, then I need to start a new thread that will receive
-                    #messages from the twidder server
 
                     #now try to create another connection, but this one will
                     #be for a different socket, one meant only to receive live messages
