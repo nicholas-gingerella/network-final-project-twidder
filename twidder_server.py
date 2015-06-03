@@ -176,11 +176,13 @@ class TwidderProtocol(protocol.Protocol):
 
     #if a valid username and password are received, let this user enter the USER state
     raw_password = b64decode(user_pass)
-    #print 'Login Attempt:'
-    #print 'username =',user
-    #print 'encoded pass =',user_pass
-    #print 'decoded pass =',raw_password
-    if DB.authorize_user(user, raw_password): 
+    print '**Login Attempt**'
+    print 'username =',user
+    print 'encoded pass =',user_pass
+    print 'decoded pass =',raw_password
+    if DB.authorize_user(user, raw_password):
+      print 'connection authorized'
+      print ''
       #assign user name of this connection
       self.user_id = user
 
@@ -207,6 +209,10 @@ class TwidderProtocol(protocol.Protocol):
 
       return
     else:
+      print 'authorization failed'
+      print 'closing connection'
+      print ''
+
       if self.debug:
         print 'bad credentials'
 
@@ -273,6 +279,18 @@ class TwidderProtocol(protocol.Protocol):
           #when the user views all messages, set flag to reset unread
           #messages to 0 for all of this users subscriptions
           self.clear_all_unread = True
+
+      #get the number of unread messages for this user
+      elif json_msg['contents']['message'] == 'get_num_unread':
+
+          result = DB.get_num_unread(self.user_id)
+          if result == None:
+            result = 0
+
+          #send number of unread messages to user
+          response = self.newMessage( message_type = 'response' )
+          response['contents']['message'] = result 
+          self.transport.write(json.dumps(response))
 
       #get the subscriptions that this user is subscribed to
       elif json_msg['contents']['message'] == 'get_subscriptions':

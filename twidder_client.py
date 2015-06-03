@@ -22,6 +22,8 @@ class TwidderClient:
     def __init__(self, targetHost = '127.0.0.1', portNum = 8000):
         self.username = ''
         self.password = ''
+        self.num_unread_messages_seen = False
+        self.num_unread_messages = 0
         self.states = enum('LOGIN','CONNECT','MAIN_MENU',
                            'OFFLINE_MAIN', 'OFFLINE_ALL', 'OFFLINE_SUBSCRIPTIONS',
                            'SUBSCRIPTIONS_MAIN','SUBSCRIPTIONS_ADD','SUBSCRIPTIONS_DELETE',
@@ -340,6 +342,18 @@ class TwidderClient:
 
 
     def handle_MAIN_MENU(self):
+        if self.num_unread_messages_seen == False:
+            #request number of unread messages
+            msg = self.new_message(message_type = 'offline_messages')
+            msg['contents']['message'] = 'get_num_unread'
+            self.send_data(json.dumps(msg))
+            
+            #wait for response
+            response = self.get_json()
+            self.num_unread_messages = response['contents']['message']
+            self.num_unread_messages_seen = True
+
+
         choice = self.print_main_menu()
         
         #based on input, decide which state to go to
@@ -367,6 +381,7 @@ class TwidderClient:
           self.state = self.states.MAIN_MENU
 
     def handle_OFFLINE_ALL(self):
+        self.num_unread_messages = 0
         os.system('clear')
         print('***************************')
         print('All Offline Messages')
@@ -705,6 +720,8 @@ class TwidderClient:
     def handle_LOGOUT(self):
         #if we got here, then the credentials werent correct, go back to 
         #login screen
+        self.num_unread_messages_seen = False 
+        self.num_unread_messages = 0
         self.disconnect()
         self.state = self.states.LOGIN
 
@@ -734,6 +751,8 @@ class TwidderClient:
         os.system('clear')
         menu =  '***************************************\n'
         menu += self.username + '\'s Dashboard\n'
+        if self.num_unread_messages > 0:
+            menu += 'You have ' + str(self.num_unread_messages) + ' messages\n'
         menu += '***************************************\n'
         menu += '1 - See offline messages\n'
         menu += '2 - Edit subscriptions\n'

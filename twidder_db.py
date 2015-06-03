@@ -323,11 +323,19 @@ class TwidderDB(object):
       return self.exec_query(sql)
 
 
-    def get_num_unread(self):
-      sql = '''
-        SELECT SUM(unread) 
-        FROM subscribes 
-      '''
+    def get_num_unread(self,user=None):
+      if user == None:
+        sql = '''
+          SELECT SUM(unread) 
+          FROM subscribes 
+        '''
+      else:
+        sql = '''
+          SELECT SUM(unread) 
+          FROM subscribes 
+          WHERE follower_id="'''+user+'''"
+        '''
+
       result = self.exec_query(sql)
       if result == None:
         return None
